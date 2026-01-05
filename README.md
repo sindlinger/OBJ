@@ -1,14 +1,7 @@
 # OBJ (objects/textops module)
 
-This sub-repo isolates the objects/textops workflow used for despacho extraction.
-It does not ship code on its own; it provides the commands and wrappers to run
-objects-based extraction from the main tjpdf repo.
-
-## Run (wrapper)
-- Bash: `./objects.sh <subcmd> [args]`
-- PowerShell: `./objects.ps1 <subcmd> [args]`
-
-Both wrappers call `../tjpdf.exe objects ...`.
+This sub-repo isolates the **objects/textops** implementation used for despacho extraction.
+It ships the **actual C# objects commands** (no bash/powershell wrappers).
 
 ## Core commands (objects/textops)
 - Diff (two PDFs):
