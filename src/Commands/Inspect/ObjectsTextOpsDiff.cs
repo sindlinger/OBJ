@@ -183,6 +183,8 @@ namespace FilterPDF.Commands
 
             var all = new List<List<string>>();
             var tokenLists = new List<List<string>>();
+            var tokenOpLists = new List<List<int>>();
+            var tokenOpNames = new List<List<string>>();
             foreach (var path in inputs)
             {
                 if (!File.Exists(path))
@@ -201,7 +203,12 @@ namespace FilterPDF.Commands
                 }
                 all.Add(ExtractTextOperatorLines(stream, resources, opFilter, tokenMode));
                 if (blocks && (mode == DiffMode.Variations || mode == DiffMode.Both))
-                    tokenLists.Add(ExtractTextOperatorTokens(stream, resources, opFilter, tokenMode));
+                {
+                    var tokensWithOps = ExtractTextOperatorTokensWithOps(stream, resources, opFilter, tokenMode);
+                    tokenLists.Add(tokensWithOps.Tokens);
+                    tokenOpLists.Add(tokensWithOps.OpIndexes);
+                    tokenOpNames.Add(tokensWithOps.OpNames);
+                }
             }
 
             var maxLen = all.Max(l => l.Count);
@@ -228,7 +235,7 @@ namespace FilterPDF.Commands
             if (mode == DiffMode.Variations || mode == DiffMode.Both)
             {
                 if (blocks)
-                    PrintVariationBlocks(inputs, tokenLists, blocksInline, blocksOrder, blockRange, minTokenLenFilter, tokenMode);
+                    PrintVariationBlocks(inputs, tokenLists, tokenOpLists, tokenOpNames, blocksInline, blocksOrder, blockRange, minTokenLenFilter, tokenMode);
                 else
                     PrintVariations(inputs, varLines, minTokenLenFilter, tokenMode);
             }
@@ -338,7 +345,7 @@ namespace FilterPDF.Commands
             }
         }
 
-        private static void PrintVariationBlocks(List<string> inputs, List<List<string>> tokenLists, bool inline, string order, (int? Start, int? End) range, int minTokenLenFilter, TokenMode tokenMode)
+        private static void PrintVariationBlocks(List<string> inputs, List<List<string>> tokenLists, List<List<int>> tokenOpLists, List<List<string>> tokenOpNames, bool inline, string order, (int? Start, int? End) range, int minTokenLenFilter, TokenMode tokenMode)
         {
             if (tokenLists.Count == 0)
             {
@@ -410,7 +417,7 @@ namespace FilterPDF.Commands
                 var startBlock = blocks[startIdx - 1];
                 var endBlock = blocks[endIdx - 1];
                 var merged = new VarBlockSlots(startBlock.StartSlot, endBlock.EndSlot);
-                WriteInlineBlock(FormatBlockLabel(startIdx, endIdx), merged, inputs, baseTokens, tokenLists, alignments, order);
+                WriteInlineBlock(FormatBlockLabel(startIdx, endIdx), merged, inputs, baseTokens, tokenLists, tokenOpLists, tokenOpNames, alignments, order);
                 return;
             }
 
@@ -419,7 +426,7 @@ namespace FilterPDF.Commands
                 for (int idx = 0; idx < blocks.Count; idx++)
                 {
                     var label = FormatBlockLabel(idx + 1, idx + 1);
-                    WriteInlineBlock(label, blocks[idx], inputs, baseTokens, tokenLists, alignments, order);
+                    WriteInlineBlock(label, blocks[idx], inputs, baseTokens, tokenLists, tokenOpLists, tokenOpNames, alignments, order);
                 }
                 return;
             }
@@ -433,8 +440,7 @@ namespace FilterPDF.Commands
                     if (maxLen < minTokenLenFilter)
                         continue;
                 }
-                var rangeLabel = FormatBlockRange(block.StartSlot, block.EndSlot);
-                Console.WriteLine($"[block {n}] {rangeLabel}");
+                Console.WriteLine($"[block {n}]");
 
                 for (int i = 0; i < inputs.Count; i++)
                 {
@@ -443,15 +449,16 @@ namespace FilterPDF.Commands
                     if (text.Length == 0)
                         continue;
 
+                    var opLabel = BuildBlockOpLabel(block, i, tokenOpLists, tokenOpNames, alignments);
                     var display = EscapeBlockText(text);
-                    Console.WriteLine($"  {name}: \"{display}\" (len={text.Length})");
+                    Console.WriteLine($"  {name} {opLabel}: \"{display}\" (len={text.Length})");
                 }
                 Console.WriteLine();
                 n++;
             }
         }
 
-        private static void WriteInlineBlock(string label, VarBlockSlots block, List<string> inputs, List<string> baseTokens, List<List<string>> tokenLists, List<TokenAlignment> alignments, string order)
+        private static void WriteInlineBlock(string label, VarBlockSlots block, List<string> inputs, List<string> baseTokens, List<List<string>> tokenLists, List<List<int>> tokenOpLists, List<List<string>> tokenOpNames, List<TokenAlignment> alignments, string order)
         {
             bool blockFirst = IsBlockFirst(order);
             for (int i = 0; i < inputs.Count; i++)
@@ -461,11 +468,13 @@ namespace FilterPDF.Commands
                 if (text.Length == 0)
                     continue;
 
+                var opLabel = BuildBlockOpLabel(block, i, tokenOpLists, tokenOpNames, alignments);
+                var labelOut = string.IsNullOrWhiteSpace(opLabel) ? label : opLabel;
                 var display = EscapeBlockText(text);
                 if (blockFirst)
-                    Console.WriteLine($"{label}\t{name}\t\"{display}\" (len={text.Length})");
+                    Console.WriteLine($"{labelOut}\t{name}\t\"{display}\" (len={text.Length})");
                 else
-                    Console.WriteLine($"\"{display}\" (len={text.Length})\t{label}\t{name}");
+                    Console.WriteLine($"\"{display}\" (len={text.Length})\t{labelOut}\t{name}");
             }
         }
 
@@ -509,8 +518,12 @@ namespace FilterPDF.Commands
                     if (pdfIndex == 0)
                         continue;
                     var alignment = alignments[pdfIndex - 1];
-                    foreach (var token in alignment.Insertions[gap])
-                        sb.Append(token);
+                    var otherTokens = tokenLists[pdfIndex];
+                    foreach (var tokenIdx in alignment.Insertions[gap])
+                    {
+                        if (tokenIdx >= 0 && tokenIdx < otherTokens.Count)
+                            sb.Append(otherTokens[tokenIdx]);
+                    }
                 }
                 else
                 {
@@ -557,8 +570,12 @@ namespace FilterPDF.Commands
                     int gap = slot / 2;
                     if (pdfIndex == 0) continue;
                     var alignment = alignments[pdfIndex - 1];
-                    foreach (var token in alignment.Insertions[gap])
-                        maxLen = Math.Max(maxLen, token?.Length ?? 0);
+                    var otherTokens = tokenLists[pdfIndex];
+                    foreach (var tokenIdx in alignment.Insertions[gap])
+                    {
+                        if (tokenIdx >= 0 && tokenIdx < otherTokens.Count)
+                            maxLen = Math.Max(maxLen, otherTokens[tokenIdx].Length);
+                    }
                 }
                 else
                 {
@@ -580,6 +597,71 @@ namespace FilterPDF.Commands
                 }
             }
             return maxLen;
+        }
+
+        private static string BuildBlockOpLabel(VarBlockSlots block, int pdfIndex, List<List<int>> tokenOpLists, List<List<string>> tokenOpNames, List<TokenAlignment> alignments)
+        {
+            int minOp = int.MaxValue;
+            int maxOp = -1;
+            var ops = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddOp(int op, string opName)
+            {
+                if (op <= 0) return;
+                minOp = Math.Min(minOp, op);
+                maxOp = Math.Max(maxOp, op);
+                if (!string.IsNullOrWhiteSpace(opName))
+                    ops.Add(opName);
+            }
+
+            var maxSlot = block.EndSlot;
+            for (int slot = block.StartSlot; slot <= maxSlot; slot++)
+            {
+                if (slot % 2 == 0)
+                {
+                    if (pdfIndex == 0)
+                        continue;
+                    int gap = slot / 2;
+                    var alignment = alignments[pdfIndex - 1];
+                    var otherOps = tokenOpLists[pdfIndex];
+                    var otherNames = tokenOpNames[pdfIndex];
+                    foreach (var tokenIdx in alignment.Insertions[gap])
+                    {
+                        if (tokenIdx >= 0 && tokenIdx < otherOps.Count)
+                            AddOp(otherOps[tokenIdx], otherNames[tokenIdx]);
+                    }
+                }
+                else
+                {
+                    int tokenIdx = (slot - 1) / 2;
+                    if (tokenIdx < 0 || tokenIdx >= tokenOpLists[0].Count)
+                        continue;
+
+                    if (pdfIndex == 0)
+                    {
+                        AddOp(tokenOpLists[0][tokenIdx], tokenOpNames[0][tokenIdx]);
+                    }
+                    else
+                    {
+                        var alignment = alignments[pdfIndex - 1];
+                        var otherIdx = alignment.BaseToOther[tokenIdx];
+                        if (otherIdx >= 0 && otherIdx < tokenOpLists[pdfIndex].Count)
+                            AddOp(tokenOpLists[pdfIndex][otherIdx], tokenOpNames[pdfIndex][otherIdx]);
+                    }
+                }
+            }
+
+            if (maxOp < 0)
+                return "op?";
+
+            string range = minOp == maxOp ? $"op{minOp}" : $"op{minOp}-{maxOp}";
+            if (ops.Count > 0)
+            {
+                var label = string.Join("/", ops.OrderBy(v => v, StringComparer.OrdinalIgnoreCase));
+                range += $"[{label}]";
+            }
+
+            return range;
         }
 
         private static string EscapeBlockText(string text)
@@ -1041,14 +1123,14 @@ namespace FilterPDF.Commands
 
         private sealed class TokenAlignment
         {
-            public TokenAlignment(int[] baseToOther, List<string>[] insertions)
+            public TokenAlignment(int[] baseToOther, List<int>[] insertions)
             {
                 BaseToOther = baseToOther;
                 Insertions = insertions;
             }
 
             public int[] BaseToOther { get; }
-            public List<string>[] Insertions { get; }
+            public List<int>[] Insertions { get; }
         }
 
         private sealed class TokenEncoding
@@ -1075,9 +1157,9 @@ namespace FilterPDF.Commands
             for (int i = 0; i < baseToOther.Length; i++)
                 baseToOther[i] = -1;
 
-            var insertions = new List<string>[baseTokens.Count + 1];
+            var insertions = new List<int>[baseTokens.Count + 1];
             for (int i = 0; i < insertions.Length; i++)
-                insertions[i] = new List<string>();
+                insertions[i] = new List<int>();
 
             int baseIdx = 0;
             int otherIdx = 0;
@@ -1104,11 +1186,9 @@ namespace FilterPDF.Commands
 
                 if (diff.operation == Operation.INSERT)
                 {
-                    foreach (var ch in diff.text)
+                    foreach (var _ in diff.text)
                     {
-                        int idx = ch;
-                        if (idx >= 0 && idx < encoding.IndexToToken.Count)
-                            insertions[Math.Min(baseIdx, insertions.Length - 1)].Add(encoding.IndexToToken[idx]);
+                        insertions[Math.Min(baseIdx, insertions.Length - 1)].Add(otherIdx);
                         otherIdx++;
                     }
                 }
@@ -1946,16 +2026,39 @@ namespace FilterPDF.Commands
 
         private static List<string> ExtractTextOperatorTokens(PdfStream stream, PdfResources resources, HashSet<string> opFilter, TokenMode tokenMode)
         {
+            return ExtractTextOperatorTokensWithOps(stream, resources, opFilter, tokenMode).Tokens;
+        }
+
+        private sealed class TokenOpsResult
+        {
+            public TokenOpsResult(List<string> tokens, List<int> opIndexes, List<string> opNames)
+            {
+                Tokens = tokens;
+                OpIndexes = opIndexes;
+                OpNames = opNames;
+            }
+
+            public List<string> Tokens { get; }
+            public List<int> OpIndexes { get; }
+            public List<string> OpNames { get; }
+        }
+
+        private static TokenOpsResult ExtractTextOperatorTokensWithOps(PdfStream stream, PdfResources resources, HashSet<string> opFilter, TokenMode tokenMode)
+        {
             var bytes = ExtractStreamBytes(stream);
-            if (bytes.Length == 0) return new List<string>();
+            if (bytes.Length == 0)
+                return new TokenOpsResult(new List<string>(), new List<int>(), new List<string>());
 
             var tokens = TokenizeContent(bytes);
             var result = new List<string>();
+            var opIndexes = new List<int>();
+            var opNames = new List<string>();
             var operands = new List<string>();
             var textQueue = tokenMode == TokenMode.Text
                 ? new Queue<string>(PdfTextExtraction.CollectTextOperatorTexts(stream, resources))
                 : new Queue<string>();
 
+            int opIndex = 0;
             foreach (var tok in tokens)
             {
                 if (!IsOperatorToken(tok))
@@ -1966,22 +2069,27 @@ namespace FilterPDF.Commands
 
                 if (IsTextShowingOperator(tok) && (opFilter.Count == 0 || opFilter.Contains(tok)))
                 {
+                    opIndex++;
+                    string text;
                     if (tokenMode == TokenMode.Text)
                     {
                         var rawLine = operands.Count > 0 ? $"{string.Join(" ", operands)} {tok}" : tok;
-                        var decoded = DequeueDecodedText(tok, operands, rawLine, textQueue) ?? "";
-                        result.Add(decoded);
+                        text = DequeueDecodedText(tok, operands, rawLine, textQueue) ?? "";
                     }
                     else
                     {
-                        result.Add(ExtractRawTextToken(tok, operands));
+                        text = ExtractRawTextToken(tok, operands);
                     }
+
+                    result.Add(text);
+                    opIndexes.Add(opIndex);
+                    opNames.Add(tok);
                 }
 
                 operands.Clear();
             }
 
-            return result;
+            return new TokenOpsResult(result, opIndexes, opNames);
         }
 
         private static string ExtractDecodedTextFromLine(string line)
