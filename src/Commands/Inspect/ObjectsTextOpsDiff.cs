@@ -831,7 +831,8 @@ namespace FilterPDF.Commands
 
             for (int i = 0; i < fullResults.Count; i++)
             {
-                var sliced = SliceFullTextByOpRange(fullResults[i], globalStart, globalEnd);
+                var range = rangesPerFile[i];
+                var sliced = SliceFullTextByOpRange(fullResults[i], range.Start, range.End);
                 slicedTexts.Add(sliced.Text);
                 slicedOps.Add(sliced.OpIndexes);
                 slicedOpNames.Add(sliced.OpNames);
