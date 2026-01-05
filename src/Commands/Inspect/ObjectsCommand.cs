@@ -18,7 +18,7 @@ namespace FilterPDF.Commands
 
         public override void Execute(string[] args)
         {
-            var (mode, rest) = ParseMode(args, new[] { "list", "analyze", "deep", "inspect", "summary", "types", "table", "filter", "shell", "text", "texto", "textoperators", "textops", "textopsfixed", "textopsvar", "textopsdiff", "objdiff", "diff", "extractfields", "fronthead", "backtail" });
+            var (mode, rest) = ParseMode(args, new[] { "list", "analyze", "deep", "inspect", "summary", "types", "table", "filter", "operators", "ops", "shell", "text", "texto", "textoperators", "textops", "textopsfixed", "textopsvar", "textopsdiff", "objdiff", "diff", "extractfields", "fronthead", "backtail" });
             if (string.IsNullOrWhiteSpace(mode))
             {
                 ShowHelp();
@@ -41,6 +41,10 @@ namespace FilterPDF.Commands
                     break;
                 case "filter":
                     ObjectsListCommand.Execute(rest);
+                    break;
+                case "operators":
+                case "ops":
+                    ObjectsOperators.Execute(rest);
                     break;
                 case "textoperators":
                 case "textops":
@@ -91,6 +95,8 @@ namespace FilterPDF.Commands
             Console.WriteLine("                             [--type /XObject] [--subtype /Image] [--derived texto|sem_texto|stream|dict]");
             Console.WriteLine("                             [--detail analyze|deep|table]");
             Console.WriteLine("aliases: analyze|deep|table|filter (redirecionam para list)");
+            Console.WriteLine("tjpdf-cli inspect objects operators <subcmd> [...]");
+            Console.WriteLine("  subcmd: text|var|fixed|diff|anchors");
             Console.WriteLine("tjpdf-cli inspect objects textoperators --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
             Console.WriteLine("tjpdf-cli inspect objects textopsvar --inputs a.pdf,b.pdf --obj N [--blocks] [--blocks-inline] [--blocks-order block-first|text-first] [--blocks-range 15-20] [--ops-diff]");
             Console.WriteLine("                                             [--min-token-len N | --long-tokens]");
