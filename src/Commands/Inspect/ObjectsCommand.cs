@@ -47,17 +47,19 @@ namespace FilterPDF.Commands
                     ObjectsOperators.Execute(rest);
                     break;
                 case "textoperators":
-                case "textops":
-                    ObjectsTextOperators.Execute(rest);
+                    PrintDeprecated("textoperators", "objects operators text");
                     break;
                 case "textopsfixed":
-                    ObjectsTextOpsDiff.Execute(rest, ObjectsTextOpsDiff.DiffMode.Fixed);
+                    PrintDeprecated("textopsfixed", "objects operators fixed");
                     break;
                 case "textopsvar":
-                    ObjectsTextOpsDiff.Execute(rest, ObjectsTextOpsDiff.DiffMode.Variations);
+                    PrintDeprecated("textopsvar", "objects operators var");
                     break;
                 case "textopsdiff":
-                    ObjectsTextOpsDiff.Execute(rest, ObjectsTextOpsDiff.DiffMode.Both);
+                    PrintDeprecated("textopsdiff", "objects operators diff");
+                    break;
+                case "textops":
+                    PrintDeprecated("textops", "objects operators text");
                     break;
                 case "fronthead":
                     ObjectsFrontBack.Execute(rest, ObjectsFrontBack.BandMode.Front);
@@ -97,14 +99,7 @@ namespace FilterPDF.Commands
             Console.WriteLine("aliases: analyze|deep|table|filter (redirecionam para list)");
             Console.WriteLine("tjpdf-cli inspect objects operators <subcmd> [...]");
             Console.WriteLine("  subcmd: text|var|fixed|diff|anchors");
-            Console.WriteLine("tjpdf-cli inspect objects textoperators --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
-            Console.WriteLine("tjpdf-cli inspect objects textopsvar --inputs a.pdf,b.pdf --obj N [--blocks] [--blocks-inline] [--blocks-order block-first|text-first] [--blocks-range 15-20] [--ops-diff]");
-            Console.WriteLine("                                             [--min-token-len N | --long-tokens]");
-            Console.WriteLine("tjpdf-cli inspect objects textopsvar --input file.pdf --obj N --self [--blocks-inline] [--self-min-len 2] [--self-pattern-max 1]");
-            Console.WriteLine("                                             [--min-token-len N | --long-tokens] [--blocks-range 15-20] [--anchors] [--anchors-out <dir|file>] [--anchors-merge] [--rules <yml> | --doc <nome>]");
-            Console.WriteLine("tjpdf-cli inspect objects textopsfixed --inputs a.pdf,b.pdf --obj N [--min-token-len N | --long-tokens] [--ops-diff]");
-            Console.WriteLine("tjpdf-cli inspect objects textopsfixed --input file.pdf --obj N --self [--min-token-len N | --long-tokens] [--rules <yml> | --doc <nome>]");
-            Console.WriteLine("tjpdf-cli inspect objects textopsdiff --inputs a.pdf,b.pdf --obj N [--ops-diff]");
+            Console.WriteLine("  (textops* antigos desativados)");
             Console.WriteLine("tjpdf-cli inspect objects objdiff --input target.pdf --inputs a.pdf,b.pdf [--input-dir <dir>] [--page N|--pages 1,3] [--top N] [--min-score 0.70]");
             Console.WriteLine("                                   [--band front|back] [--y-range 0.70-1.00]");
             Console.WriteLine("tjpdf-cli inspect objects fronthead --input file.pdf [--page N|--pages 1,3] [--y-range 0.70-1.00] [--include-xobject] [--limit N]");
@@ -129,6 +124,11 @@ namespace FilterPDF.Commands
             Console.WriteLine("tjpdf-cli inspect objects extractfields DATA_DESPESA (DATA_ARBITRADO_FINAL) --input file.pdf");
             Console.WriteLine("tjpdf-cli inspect objects shell --input file.pdf [--last]");
             Console.WriteLine("tjpdf-cli inspect objects text --input file.pdf");
+        }
+
+        private static void PrintDeprecated(string cmd, string replacement)
+        {
+            Console.WriteLine($"Comando '{cmd}' desativado. Use: {replacement}");
         }
 
         private static (string mode, string[] rest) ParseMode(string[] args, string[] modes)

@@ -5,11 +5,11 @@ It ships the **actual C# objects commands** (no bash/powershell wrappers).
 
 ## Core commands (objects/textops)
 - Diff (two PDFs):
-  `tjpdf.exe objects textopsdiff --inputs a.pdf,b.pdf --obj 6 --op Tj,TJ`
+  `tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj 6 --op Tj,TJ`
 - Variaveis (self):
-  `tjpdf.exe objects textopsvar --input file.pdf --obj 6 --self --anchors --doc tjpb_despacho`
+  `tjpdf.exe objects operators var --input file.pdf --obj 6 --self --anchors --doc tjpb_despacho`
 - Fixos (self):
-  `tjpdf.exe objects textopsfixed --input file.pdf --obj 6 --self --doc tjpb_despacho`
+  `tjpdf.exe objects operators fixed --input file.pdf --obj 6 --self --doc tjpb_despacho`
 - Extração por op_range (por campo):
   `tjpdf.exe objects extractfields ESPECIALIDADE --input file.pdf --json`
 
@@ -20,6 +20,7 @@ Use `objects operators` para agrupar os comandos de operadores:
 - `objects operators fixed`     -> textopsfixed
 - `objects operators diff`      -> textopsdiff
 - `objects operators anchors`   -> textopsvar + `--anchors`
+- `textops*` antigos estão desativados (use operators)
 
 ## Configs (root repo)
 - Rules: `../configs/textops_rules/`
