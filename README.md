@@ -1,7 +1,8 @@
 # OBJ (objects/textops module)
 
 This sub-repo isolates the **objects/textops** implementation used for despacho extraction.
-It ships the **actual C# objects commands** (no bash/powershell wrappers).
+It ships the **actual C# objects commands** (no bash/powershell wrappers) **and the core despacho
+extraction engine** (TjpbDespachoExtractor).
 
 ## Core commands (objects/textops)
 - Diff (two PDFs):
@@ -25,3 +26,9 @@ Use `objects operators` para agrupar os comandos de operadores:
 - Rules: `../configs/textops_rules/`
 - Anchors: `../configs/textops_anchors/`
 - Field maps: `../ExtractFields/`
+
+## Extraction core (now inside OBJ)
+The full `FilterPDF.TjpbDespachoExtractor` pipeline now lives here:
+- Commands: `src/TjpbDespachoExtractor/Commands/`
+- Extraction engine: `src/TjpbDespachoExtractor/Extraction/`
+- Models/Config/Reference/Utils: `src/TjpbDespachoExtractor/*`
