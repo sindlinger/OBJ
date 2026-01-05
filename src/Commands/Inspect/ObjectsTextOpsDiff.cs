@@ -66,7 +66,14 @@ namespace FilterPDF.Commands
                     out var cleanupEfficiency,
                     out var diffFullText,
                     out var includeLineBreaks,
-                    out var includeTdLineBreaks))
+                    out var includeTdLineBreaks,
+                    out var rangeStartRegex,
+                    out var rangeEndRegex,
+                    out var rangeStartOp,
+                    out var rangeEndOp,
+                    out var dumpRangeText,
+                    out var includeTmLineBreaks,
+                    out var lineBreakAsSpace))
                 return;
 
             var rulesPath = ResolveRulesPath(rulesPathArg, rulesDoc);
@@ -192,6 +199,7 @@ namespace FilterPDF.Commands
             var tokenLists = new List<List<string>>();
             var tokenOpLists = new List<List<int>>();
             var tokenOpNames = new List<List<string>>();
+            var fullResults = new List<FullTextOpsResult>();
             foreach (var path in inputs)
             {
                 if (!File.Exists(path))
@@ -221,19 +229,15 @@ namespace FilterPDF.Commands
                 }
                 else
                 {
-                    var fullText = ExtractFullTextWithOps(stream, resources, opFilter, includeLineBreaks, includeTdLineBreaks);
-                    tokenLists.Add(new List<string> { fullText.Text });
-                    tokenOpLists.Add(fullText.OpIndexes);
-                    tokenOpNames.Add(fullText.OpNames);
+                    var fullText = ExtractFullTextWithOps(stream, resources, opFilter, includeLineBreaks, includeTdLineBreaks, includeTmLineBreaks, lineBreakAsSpace);
+                    fullResults.Add(fullText);
                 }
             }
 
             if (diffFullText)
             {
                 if (mode == DiffMode.Variations || mode == DiffMode.Both)
-                {
-                    PrintFullTextDiff(inputs, tokenLists, tokenOpLists, tokenOpNames, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency);
-                }
+                    PrintFullTextDiffWithRange(inputs, fullResults, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, dumpRangeText);
                 return;
             }
 
@@ -714,9 +718,220 @@ namespace FilterPDF.Commands
                 .Replace("\"", "\\\"");
         }
 
+        private static void PrintFullTextDiffWithRange(
+            List<string> inputs,
+            List<FullTextOpsResult> fullResults,
+            bool diffLineMode,
+            bool cleanupSemantic,
+            bool cleanupLossless,
+            bool cleanupEfficiency,
+            string rangeStartRegex,
+            string rangeEndRegex,
+            int? rangeStartOp,
+            int? rangeEndOp,
+            bool dumpRangeText)
+        {
+            if (inputs.Count < 2)
+                return;
+
+            var startOps = new List<int>();
+            var endOps = new List<int>();
+            var rangesPerFile = new List<(string Name, int Start, int End)>();
+
+            for (int i = 0; i < inputs.Count; i++)
+            {
+                var name = Path.GetFileName(inputs[i]);
+                var full = fullResults[i];
+
+                if (!TryResolveRange(full, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, out var start, out var end, out var reason))
+                {
+                    Console.WriteLine($"Range invalido para {name}: {reason}");
+                    return;
+                }
+
+                startOps.Add(start);
+                endOps.Add(end);
+                rangesPerFile.Add((name, start, end));
+            }
+
+            int globalStart = startOps.Min();
+            int globalEnd = endOps.Max();
+            if (globalEnd < globalStart)
+            {
+                Console.WriteLine("Range global invalido (fim < inicio).");
+                return;
+            }
+
+            Console.WriteLine("OBJ - DIFF FULLTEXT (texto completo do objeto)");
+            Console.WriteLine("Range por arquivo:");
+            foreach (var r in rangesPerFile)
+                Console.WriteLine($"  {r.Name}: op{r.Start}-op{r.End}");
+            Console.WriteLine($"Range final (min/max): op{globalStart}-op{globalEnd}");
+            Console.WriteLine();
+
+            var slicedTexts = new List<string>();
+            var slicedOps = new List<List<int>>();
+            var slicedOpNames = new List<List<string>>();
+
+            for (int i = 0; i < fullResults.Count; i++)
+            {
+                var sliced = SliceFullTextByOpRange(fullResults[i], globalStart, globalEnd);
+                slicedTexts.Add(sliced.Text);
+                slicedOps.Add(sliced.OpIndexes);
+                slicedOpNames.Add(sliced.OpNames);
+            }
+
+            if (dumpRangeText)
+            {
+                Console.WriteLine("Range text por arquivo:");
+                for (int i = 0; i < inputs.Count; i++)
+                {
+                    var name = Path.GetFileName(inputs[i]);
+                    var text = slicedTexts[i];
+                    var display = EscapeBlockText(text);
+                    Console.WriteLine($"  {name}: \"{display}\" (len={text.Length})");
+                }
+                Console.WriteLine();
+            }
+
+            PrintFullTextDiff(inputs, slicedTexts, slicedOps, slicedOpNames, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency);
+        }
+
+        private static bool TryResolveRange(
+            FullTextOpsResult full,
+            string rangeStartRegex,
+            string rangeEndRegex,
+            int? rangeStartOp,
+            int? rangeEndOp,
+            out int startOp,
+            out int endOp,
+            out string reason)
+        {
+            startOp = 0;
+            endOp = 0;
+            reason = "";
+
+            if (rangeStartOp.HasValue)
+                startOp = rangeStartOp.Value;
+            else if (!string.IsNullOrWhiteSpace(rangeStartRegex))
+            {
+                if (!TryFindOpByRegex(full, rangeStartRegex, true, out startOp))
+                {
+                    reason = $"range-start regex nao encontrado: {rangeStartRegex}";
+                    return false;
+                }
+            }
+            else
+            {
+                reason = "range-start nao definido";
+                return false;
+            }
+
+            if (rangeEndOp.HasValue)
+                endOp = rangeEndOp.Value;
+            else if (!string.IsNullOrWhiteSpace(rangeEndRegex))
+            {
+                if (!TryFindOpByRegex(full, rangeEndRegex, false, out endOp))
+                {
+                    reason = $"range-end regex nao encontrado: {rangeEndRegex}";
+                    return false;
+                }
+            }
+            else
+            {
+                reason = "range-end nao definido";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryFindOpByRegex(FullTextOpsResult full, string pattern, bool first, out int opIndex)
+        {
+            opIndex = 0;
+            if (string.IsNullOrWhiteSpace(pattern))
+                return false;
+
+            try
+            {
+                var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                var matches = regex.Matches(full.Text ?? "");
+                if (matches.Count == 0)
+                    return false;
+
+                var match = first ? matches[0] : matches[^1];
+                if (match.Length == 0)
+                    return false;
+
+                return TryGetOpFromSpan(full.OpIndexes, match.Index, match.Length, first, out opIndex);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryGetOpFromSpan(List<int> opIndexes, int start, int length, bool first, out int op)
+        {
+            op = 0;
+            if (opIndexes == null || opIndexes.Count == 0)
+                return false;
+            int end = Math.Min(opIndexes.Count, start + length);
+            if (start < 0 || start >= end)
+                return false;
+
+            if (first)
+            {
+                for (int i = start; i < end; i++)
+                {
+                    if (opIndexes[i] > 0)
+                    {
+                        op = opIndexes[i];
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                for (int i = end - 1; i >= start; i--)
+                {
+                    if (opIndexes[i] > 0)
+                    {
+                        op = opIndexes[i];
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static FullTextOpsResult SliceFullTextByOpRange(FullTextOpsResult full, int startOp, int endOp)
+        {
+            if (startOp < 1) startOp = 1;
+            if (endOp < startOp) endOp = startOp;
+
+            var sb = new StringBuilder();
+            var ops = new List<int>();
+            var opNames = new List<string>();
+
+            for (int i = 0; i < full.Text.Length && i < full.OpIndexes.Count && i < full.OpNames.Count; i++)
+            {
+                var op = full.OpIndexes[i];
+                if (op >= startOp && op <= endOp)
+                {
+                    sb.Append(full.Text[i]);
+                    ops.Add(op);
+                    opNames.Add(full.OpNames[i]);
+                }
+            }
+
+            return new FullTextOpsResult(sb.ToString(), ops, opNames);
+        }
+
         private static void PrintFullTextDiff(
             List<string> inputs,
-            List<List<string>> tokenLists,
+            List<string> texts,
             List<List<int>> tokenOpLists,
             List<List<string>> tokenOpNames,
             bool diffLineMode,
@@ -728,18 +943,14 @@ namespace FilterPDF.Commands
                 return;
 
             var baseName = Path.GetFileName(inputs[0]);
-            var baseText = tokenLists[0].Count > 0 ? tokenLists[0][0] : "";
+            var baseText = texts.Count > 0 ? texts[0] : "";
             var baseOps = tokenOpLists[0];
             var baseOpNames = tokenOpNames[0];
-
-            Console.WriteLine("OBJ - DIFF FULLTEXT (texto completo do objeto)");
-            Console.WriteLine($"Base: {baseName}");
-            Console.WriteLine();
 
             for (int i = 1; i < inputs.Count; i++)
             {
                 var otherName = Path.GetFileName(inputs[i]);
-                var otherText = tokenLists[i].Count > 0 ? tokenLists[i][0] : "";
+                var otherText = texts[i];
                 var otherOps = tokenOpLists[i];
                 var otherOpNames = tokenOpNames[i];
 
@@ -1447,7 +1658,14 @@ namespace FilterPDF.Commands
             out bool cleanupEfficiency,
             out bool diffFullText,
             out bool includeLineBreaks,
-            out bool includeTdLineBreaks)
+            out bool includeTdLineBreaks,
+            out string rangeStartRegex,
+            out string rangeEndRegex,
+            out int? rangeStartOp,
+            out int? rangeEndOp,
+            out bool dumpRangeText,
+            out bool includeTmLineBreaks,
+            out bool lineBreakAsSpace)
         {
             inputs = new List<string>();
             objId = 0;
@@ -1476,6 +1694,13 @@ namespace FilterPDF.Commands
             diffFullText = false;
             includeLineBreaks = true;
             includeTdLineBreaks = false;
+            rangeStartRegex = "";
+            rangeEndRegex = "";
+            rangeStartOp = null;
+            rangeEndOp = null;
+            dumpRangeText = false;
+            includeTmLineBreaks = false;
+            lineBreakAsSpace = false;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -1537,6 +1762,49 @@ namespace FilterPDF.Commands
                     string.Equals(arg, "--break-td", StringComparison.OrdinalIgnoreCase))
                 {
                     includeTdLineBreaks = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--line-breaks-tm", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--break-tm", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeTmLineBreaks = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--line-breaks-space", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--break-space", StringComparison.OrdinalIgnoreCase))
+                {
+                    lineBreakAsSpace = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--range-start", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    rangeStartRegex = args[++i];
+                    continue;
+                }
+                if (string.Equals(arg, "--range-end", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    rangeEndRegex = args[++i];
+                    continue;
+                }
+                if ((string.Equals(arg, "--range-start-op", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(arg, "--start-op", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length)
+                {
+                    if (int.TryParse(args[++i], NumberStyles.Any, CultureInfo.InvariantCulture, out var op))
+                        rangeStartOp = Math.Max(1, op);
+                    continue;
+                }
+                if ((string.Equals(arg, "--range-end-op", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(arg, "--end-op", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length)
+                {
+                    if (int.TryParse(args[++i], NumberStyles.Any, CultureInfo.InvariantCulture, out var op))
+                        rangeEndOp = Math.Max(1, op);
+                    continue;
+                }
+                if (string.Equals(arg, "--range-text", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--range-dump", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--dump-range", StringComparison.OrdinalIgnoreCase))
+                {
+                    dumpRangeText = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-mode", StringComparison.OrdinalIgnoreCase) ||
@@ -2359,7 +2627,9 @@ namespace FilterPDF.Commands
             PdfResources resources,
             HashSet<string> opFilter,
             bool includeLineBreaks,
-            bool includeTdLineBreaks)
+            bool includeTdLineBreaks,
+            bool includeTmLineBreaks,
+            bool lineBreakAsSpace)
         {
             var bytes = ExtractStreamBytes(stream);
             if (bytes.Length == 0)
@@ -2373,6 +2643,9 @@ namespace FilterPDF.Commands
             var textQueue = new Queue<string>(PdfTextExtraction.CollectTextOperatorTexts(stream, resources));
 
             int opIndex = 0;
+            bool hasTm = false;
+            double lastTmY = 0;
+            int lastTextOpIndex = 0;
 
             void AppendText(string text, int opIdx, string opName)
             {
@@ -2386,11 +2659,20 @@ namespace FilterPDF.Commands
                 }
             }
 
+            var breakText = includeLineBreaks ? (lineBreakAsSpace ? " " : "\n") : "";
+
             void AppendBreak(int opIdx, string opName)
             {
-                sb.Append('\n');
-                opIndexes.Add(opIdx);
-                opNames.Add(opName);
+                if (string.IsNullOrEmpty(breakText))
+                    return;
+                if (breakText == " " && sb.Length > 0 && char.IsWhiteSpace(sb[^1]))
+                    return;
+                foreach (var ch in breakText)
+                {
+                    sb.Append(ch);
+                    opIndexes.Add(opIdx);
+                    opNames.Add(opName);
+                }
             }
 
             foreach (var tok in tokens)
@@ -2406,21 +2688,61 @@ namespace FilterPDF.Commands
                     opIndex++;
                     var decoded = DequeueDecodedText(tok, operands, null, textQueue) ?? "";
                     AppendText(decoded, opIndex, tok);
+                    lastTextOpIndex = opIndex;
                     if (includeLineBreaks && IsLineBreakTextOperator(tok))
                         AppendBreak(opIndex, tok);
                 }
                 else if (includeLineBreaks)
                 {
                     if (IsExplicitLineBreakOperator(tok))
-                        AppendBreak(0, "");
+                        AppendBreak(lastTextOpIndex, "");
                     else if (includeTdLineBreaks && (tok == "Td" || tok == "TD"))
-                        AppendBreak(0, "");
+                    {
+                        if (TryParseTdY(operands, out var ty) && Math.Abs(ty) > 0.01)
+                            AppendBreak(lastTextOpIndex, "");
+                    }
+                    else if (includeTmLineBreaks && tok == "Tm")
+                    {
+                        if (TryParseTmY(operands, out var y))
+                        {
+                            if (hasTm && Math.Abs(y - lastTmY) > 0.01)
+                                AppendBreak(lastTextOpIndex, "");
+                            hasTm = true;
+                            lastTmY = y;
+                        }
+                    }
                 }
 
                 operands.Clear();
             }
 
             return new FullTextOpsResult(sb.ToString(), opIndexes, opNames);
+        }
+
+        private static bool TryParseTmY(List<string> operands, out double y)
+        {
+            y = 0;
+            if (operands == null || operands.Count < 6)
+                return false;
+            if (double.TryParse(operands[^1], NumberStyles.Any, CultureInfo.InvariantCulture, out var f))
+            {
+                y = f;
+                return true;
+            }
+            return false;
+        }
+
+        private static bool TryParseTdY(List<string> operands, out double y)
+        {
+            y = 0;
+            if (operands == null || operands.Count < 2)
+                return false;
+            if (double.TryParse(operands[^1], NumberStyles.Any, CultureInfo.InvariantCulture, out var ty))
+            {
+                y = ty;
+                return true;
+            }
+            return false;
         }
 
         private static string ExtractDecodedTextFromLine(string line)
