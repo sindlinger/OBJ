@@ -63,7 +63,10 @@ namespace FilterPDF.Commands
                     out var diffLineMode,
                     out var cleanupSemantic,
                     out var cleanupLossless,
-                    out var cleanupEfficiency))
+                    out var cleanupEfficiency,
+                    out var diffFullText,
+                    out var includeLineBreaks,
+                    out var includeTdLineBreaks))
                 return;
 
             var rulesPath = ResolveRulesPath(rulesPathArg, rulesDoc);
@@ -205,14 +208,33 @@ namespace FilterPDF.Commands
                     Console.WriteLine($"Objeto {objId} nao encontrado em: {path}");
                     return;
                 }
-                all.Add(ExtractTextOperatorLines(stream, resources, opFilter, tokenMode));
-                if (blocks && (mode == DiffMode.Variations || mode == DiffMode.Both))
+                if (!diffFullText)
                 {
-                    var tokensWithOps = ExtractTextOperatorTokensWithOps(stream, resources, opFilter, tokenMode);
-                    tokenLists.Add(tokensWithOps.Tokens);
-                    tokenOpLists.Add(tokensWithOps.OpIndexes);
-                    tokenOpNames.Add(tokensWithOps.OpNames);
+                    all.Add(ExtractTextOperatorLines(stream, resources, opFilter, tokenMode));
+                    if (blocks && (mode == DiffMode.Variations || mode == DiffMode.Both))
+                    {
+                        var tokensWithOps = ExtractTextOperatorTokensWithOps(stream, resources, opFilter, tokenMode);
+                        tokenLists.Add(tokensWithOps.Tokens);
+                        tokenOpLists.Add(tokensWithOps.OpIndexes);
+                        tokenOpNames.Add(tokensWithOps.OpNames);
+                    }
                 }
+                else
+                {
+                    var fullText = ExtractFullTextWithOps(stream, resources, opFilter, includeLineBreaks, includeTdLineBreaks);
+                    tokenLists.Add(new List<string> { fullText.Text });
+                    tokenOpLists.Add(fullText.OpIndexes);
+                    tokenOpNames.Add(fullText.OpNames);
+                }
+            }
+
+            if (diffFullText)
+            {
+                if (mode == DiffMode.Variations || mode == DiffMode.Both)
+                {
+                    PrintFullTextDiff(inputs, tokenLists, tokenOpLists, tokenOpNames, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency);
+                }
+                return;
             }
 
             var maxLen = all.Max(l => l.Count);
@@ -690,6 +712,108 @@ namespace FilterPDF.Commands
                 .Replace("\n", "\\n")
                 .Replace("\t", "\\t")
                 .Replace("\"", "\\\"");
+        }
+
+        private static void PrintFullTextDiff(
+            List<string> inputs,
+            List<List<string>> tokenLists,
+            List<List<int>> tokenOpLists,
+            List<List<string>> tokenOpNames,
+            bool diffLineMode,
+            bool cleanupSemantic,
+            bool cleanupLossless,
+            bool cleanupEfficiency)
+        {
+            if (inputs.Count < 2)
+                return;
+
+            var baseName = Path.GetFileName(inputs[0]);
+            var baseText = tokenLists[0].Count > 0 ? tokenLists[0][0] : "";
+            var baseOps = tokenOpLists[0];
+            var baseOpNames = tokenOpNames[0];
+
+            Console.WriteLine("OBJ - DIFF FULLTEXT (texto completo do objeto)");
+            Console.WriteLine($"Base: {baseName}");
+            Console.WriteLine();
+
+            for (int i = 1; i < inputs.Count; i++)
+            {
+                var otherName = Path.GetFileName(inputs[i]);
+                var otherText = tokenLists[i].Count > 0 ? tokenLists[i][0] : "";
+                var otherOps = tokenOpLists[i];
+                var otherOpNames = tokenOpNames[i];
+
+                Console.WriteLine($"[DIFF] {baseName} vs {otherName}");
+
+                var dmp = new diff_match_patch();
+                var diffs = dmp.diff_main(baseText, otherText, diffLineMode);
+                if (cleanupSemantic) dmp.diff_cleanupSemantic(diffs);
+                if (cleanupLossless) dmp.diff_cleanupSemanticLossless(diffs);
+                if (cleanupEfficiency) dmp.diff_cleanupEfficiency(diffs);
+
+                int basePos = 0;
+                int otherPos = 0;
+
+                foreach (var diff in diffs)
+                {
+                    var len = diff.text.Length;
+                    if (diff.operation == Operation.EQUAL)
+                    {
+                        basePos += len;
+                        otherPos += len;
+                        continue;
+                    }
+
+                    if (diff.operation == Operation.DELETE)
+                    {
+                        var label = BuildOpRangeLabel(baseOps, baseOpNames, basePos, len);
+                        var display = EscapeBlockText(diff.text);
+                        Console.WriteLine($"DEL {label}\t{baseName}\t\"{display}\" (len={len})");
+                        basePos += len;
+                        continue;
+                    }
+
+                    if (diff.operation == Operation.INSERT)
+                    {
+                        var label = BuildOpRangeLabel(otherOps, otherOpNames, otherPos, len);
+                        var display = EscapeBlockText(diff.text);
+                        Console.WriteLine($"INS {label}\t{otherName}\t\"{display}\" (len={len})");
+                        otherPos += len;
+                        continue;
+                    }
+                }
+
+                Console.WriteLine();
+            }
+        }
+
+        private static string BuildOpRangeLabel(List<int> opIndexes, List<string> opNames, int start, int length)
+        {
+            if (length <= 0 || start < 0 || start >= opIndexes.Count)
+                return "op?";
+
+            int minOp = int.MaxValue;
+            int maxOp = -1;
+            var ops = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            int end = Math.Min(opIndexes.Count, start + length);
+            for (int i = start; i < end; i++)
+            {
+                var op = opIndexes[i];
+                if (op <= 0) continue;
+                minOp = Math.Min(minOp, op);
+                maxOp = Math.Max(maxOp, op);
+                if (i < opNames.Count && !string.IsNullOrWhiteSpace(opNames[i]))
+                    ops.Add(opNames[i]);
+            }
+
+            if (maxOp < 0)
+                return "op?";
+
+            string range = minOp == maxOp ? $"op{minOp}" : $"op{minOp}-{maxOp}";
+            if (ops.Count > 0)
+                range += $"[{string.Join("/", ops.OrderBy(v => v, StringComparer.OrdinalIgnoreCase))}]";
+            return range;
         }
 
         private static string FormatBlockRange(int startSlot, int endSlot)
@@ -1320,7 +1444,10 @@ namespace FilterPDF.Commands
             out bool diffLineMode,
             out bool cleanupSemantic,
             out bool cleanupLossless,
-            out bool cleanupEfficiency)
+            out bool cleanupEfficiency,
+            out bool diffFullText,
+            out bool includeLineBreaks,
+            out bool includeTdLineBreaks)
         {
             inputs = new List<string>();
             objId = 0;
@@ -1346,6 +1473,9 @@ namespace FilterPDF.Commands
             cleanupSemantic = false;
             cleanupLossless = false;
             cleanupEfficiency = false;
+            diffFullText = false;
+            includeLineBreaks = true;
+            includeTdLineBreaks = false;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -1384,6 +1514,29 @@ namespace FilterPDF.Commands
                 if (string.Equals(arg, "--blocks", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--block", StringComparison.OrdinalIgnoreCase))
                 {
                     blocks = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--full-text", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--diff-text", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--fulltext", StringComparison.OrdinalIgnoreCase))
+                {
+                    diffFullText = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--no-line-breaks", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeLineBreaks = false;
+                    continue;
+                }
+                if (string.Equals(arg, "--line-breaks", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeLineBreaks = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--line-breaks-td", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--break-td", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeTdLineBreaks = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-mode", StringComparison.OrdinalIgnoreCase) ||
@@ -1887,6 +2040,11 @@ namespace FilterPDF.Commands
             return op == "'" || op == "\"";
         }
 
+        private static bool IsExplicitLineBreakOperator(string op)
+        {
+            return op == "T*" || op == "'" || op == "\"";
+        }
+
         private sealed class TextOpsRulesFile
         {
             public int Version { get; set; } = 1;
@@ -2180,6 +2338,89 @@ namespace FilterPDF.Commands
             }
 
             return new TokenOpsResult(result, opIndexes, opNames);
+        }
+
+        private sealed class FullTextOpsResult
+        {
+            public FullTextOpsResult(string text, List<int> opIndexes, List<string> opNames)
+            {
+                Text = text;
+                OpIndexes = opIndexes;
+                OpNames = opNames;
+            }
+
+            public string Text { get; }
+            public List<int> OpIndexes { get; }
+            public List<string> OpNames { get; }
+        }
+
+        private static FullTextOpsResult ExtractFullTextWithOps(
+            PdfStream stream,
+            PdfResources resources,
+            HashSet<string> opFilter,
+            bool includeLineBreaks,
+            bool includeTdLineBreaks)
+        {
+            var bytes = ExtractStreamBytes(stream);
+            if (bytes.Length == 0)
+                return new FullTextOpsResult("", new List<int>(), new List<string>());
+
+            var tokens = TokenizeContent(bytes);
+            var sb = new StringBuilder();
+            var opIndexes = new List<int>();
+            var opNames = new List<string>();
+            var operands = new List<string>();
+            var textQueue = new Queue<string>(PdfTextExtraction.CollectTextOperatorTexts(stream, resources));
+
+            int opIndex = 0;
+
+            void AppendText(string text, int opIdx, string opName)
+            {
+                if (string.IsNullOrEmpty(text))
+                    return;
+                foreach (var ch in text)
+                {
+                    sb.Append(ch);
+                    opIndexes.Add(opIdx);
+                    opNames.Add(opName);
+                }
+            }
+
+            void AppendBreak(int opIdx, string opName)
+            {
+                sb.Append('\n');
+                opIndexes.Add(opIdx);
+                opNames.Add(opName);
+            }
+
+            foreach (var tok in tokens)
+            {
+                if (!IsOperatorToken(tok))
+                {
+                    operands.Add(tok);
+                    continue;
+                }
+
+                if (IsTextShowingOperator(tok) && (opFilter.Count == 0 || opFilter.Contains(tok)))
+                {
+                    opIndex++;
+                    var decoded = DequeueDecodedText(tok, operands, null, textQueue) ?? "";
+                    AppendText(decoded, opIndex, tok);
+                    if (includeLineBreaks && IsLineBreakTextOperator(tok))
+                        AppendBreak(opIndex, tok);
+                }
+                else if (includeLineBreaks)
+                {
+                    if (IsExplicitLineBreakOperator(tok))
+                        AppendBreak(0, "");
+                    else if (includeTdLineBreaks && (tok == "Td" || tok == "TD"))
+                        AppendBreak(0, "");
+                }
+
+                operands.Clear();
+            }
+
+            return new FullTextOpsResult(sb.ToString(), opIndexes, opNames);
         }
 
         private static string ExtractDecodedTextFromLine(string line)
