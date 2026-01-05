@@ -2124,7 +2124,7 @@ namespace FilterPDF.Commands
                 var arrayToken = ExtractArrayToken(operandsText);
                 var needed = CountTextChunksInArray(arrayToken);
                 if (needed <= 1)
-                    return textQueue.Count > 0 ? textQueue.Dequeue() : ExtractDecodedTextFromLine(rawLine);
+                    return textQueue.Count > 0 ? textQueue.Dequeue() : ExtractDecodedTextFromLine(rawLine ?? "");
 
                 var sb = new StringBuilder();
                 for (int i = 0; i < needed && textQueue.Count > 0; i++)
