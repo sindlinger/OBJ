@@ -64,6 +64,7 @@ namespace FilterPDF.Commands
                     out var cleanupSemantic,
                     out var cleanupLossless,
                     out var cleanupEfficiency,
+                    out var cleanupSpecified,
                     out var diffFullText,
                     out var includeLineBreaks,
                     out var includeTdLineBreaks,
@@ -73,7 +74,8 @@ namespace FilterPDF.Commands
                     out var rangeEndOp,
                     out var dumpRangeText,
                     out var includeTmLineBreaks,
-                    out var lineBreakAsSpace))
+                    out var lineBreakAsSpace,
+                    out var lineBreaksSpecified))
                 return;
 
             var rulesPath = ResolveRulesPath(rulesPathArg, rulesDoc);
@@ -105,6 +107,21 @@ namespace FilterPDF.Commands
             {
                 Console.WriteLine("Informe --obj <id>.");
                 return;
+            }
+
+            if (!selfMode && mode == DiffMode.Both)
+            {
+                diffFullText = true;
+                dumpRangeText = true;
+                if (!cleanupSpecified)
+                    cleanupLossless = true;
+                if (!lineBreaksSpecified)
+                {
+                    includeLineBreaks = true;
+                    includeTdLineBreaks = true;
+                    includeTmLineBreaks = true;
+                    lineBreakAsSpace = true;
+                }
             }
 
             if (selfMode)
@@ -236,8 +253,9 @@ namespace FilterPDF.Commands
 
             if (diffFullText)
             {
+                var roiDoc = ResolveRoiDoc(rulesDoc, objId);
                 if (mode == DiffMode.Variations || mode == DiffMode.Both)
-                    PrintFullTextDiffWithRange(inputs, fullResults, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, dumpRangeText);
+                    PrintFullTextDiffWithRange(inputs, fullResults, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, dumpRangeText, roiDoc, objId);
                 return;
             }
 
@@ -729,7 +747,9 @@ namespace FilterPDF.Commands
             string rangeEndRegex,
             int? rangeStartOp,
             int? rangeEndOp,
-            bool dumpRangeText)
+            bool dumpRangeText,
+            string roiDoc,
+            int objId)
         {
             if (inputs.Count < 2)
                 return;
@@ -737,11 +757,37 @@ namespace FilterPDF.Commands
             var startOps = new List<int>();
             var endOps = new List<int>();
             var rangesPerFile = new List<(string Name, int Start, int End)>();
+            var hasExplicitRange = rangeStartOp.HasValue
+                || rangeEndOp.HasValue
+                || !string.IsNullOrWhiteSpace(rangeStartRegex)
+                || !string.IsNullOrWhiteSpace(rangeEndRegex);
+            TextOpsRoiFile? roi = null;
+            string roiPath = "";
+            if (!hasExplicitRange)
+            {
+                roiPath = ResolveRoiPath(roiDoc, objId);
+                if (string.IsNullOrWhiteSpace(roiPath))
+                    roiPath = ResolveAnyRoiPath(objId);
+                roi = LoadRoi(roiPath);
+            }
 
             for (int i = 0; i < inputs.Count; i++)
             {
                 var name = Path.GetFileName(inputs[i]);
                 var full = fullResults[i];
+
+                if (!hasExplicitRange && roi != null)
+                {
+                    if (!TryResolveRangeFromRoi(roi, name, out var startRoi, out var endRoi, out var reasonRoi))
+                    {
+                        Console.WriteLine($"Range invalido para {name}: {reasonRoi}");
+                        return;
+                    }
+                    startOps.Add(startRoi);
+                    endOps.Add(endRoi);
+                    rangesPerFile.Add((name, startRoi, endRoi));
+                    continue;
+                }
 
                 if (!TryResolveRange(full, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, out var start, out var end, out var reason))
                 {
@@ -767,6 +813,8 @@ namespace FilterPDF.Commands
             foreach (var r in rangesPerFile)
                 Console.WriteLine($"  {r.Name}: op{r.Start}-op{r.End}");
             Console.WriteLine($"Range final (min/max): op{globalStart}-op{globalEnd}");
+            if (!hasExplicitRange && roi != null && !string.IsNullOrWhiteSpace(roiPath))
+                Console.WriteLine($"ROI: {roiPath}");
             Console.WriteLine();
 
             var slicedTexts = new List<string>();
@@ -844,6 +892,56 @@ namespace FilterPDF.Commands
             }
 
             return true;
+        }
+
+        private static bool TryResolveRangeFromRoi(TextOpsRoiFile roi, string fileName, out int startOp, out int endOp, out string reason)
+        {
+            startOp = 0;
+            endOp = 0;
+            reason = "";
+
+            if (roi == null)
+            {
+                reason = "ROI nao carregado";
+                return false;
+            }
+
+            var range = FindRoiRange(roi.FrontHead, fileName) ?? FindRoiRange(roi.BackTail, fileName);
+            if (range == null)
+            {
+                reason = "ROI nao encontrado para o arquivo";
+                return false;
+            }
+
+            startOp = range.StartOp;
+            endOp = range.EndOp;
+            if (startOp <= 0 || endOp <= 0)
+            {
+                reason = "ROI invalido (start/end <= 0)";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static TextOpsRoiRange? FindRoiRange(TextOpsRoiSection? section, string fileName)
+        {
+            if (section == null || section.Ranges.Count == 0)
+                return null;
+
+            var name = Path.GetFileName(fileName ?? "");
+            var match = section.Ranges.FirstOrDefault(r =>
+                !string.IsNullOrWhiteSpace(r.SourceFile) &&
+                string.Equals(r.SourceFile, name, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+                return match;
+
+            match = section.Ranges.FirstOrDefault(r =>
+                string.IsNullOrWhiteSpace(r.SourceFile) ||
+                r.SourceFile == "*" ||
+                string.Equals(r.SourceFile, "default", StringComparison.OrdinalIgnoreCase));
+
+            return match;
         }
 
         private static bool TryFindOpByRegex(FullTextOpsResult full, string pattern, bool first, out int opIndex)
@@ -1656,6 +1754,7 @@ namespace FilterPDF.Commands
             out bool cleanupSemantic,
             out bool cleanupLossless,
             out bool cleanupEfficiency,
+            out bool cleanupSpecified,
             out bool diffFullText,
             out bool includeLineBreaks,
             out bool includeTdLineBreaks,
@@ -1665,7 +1764,8 @@ namespace FilterPDF.Commands
             out int? rangeEndOp,
             out bool dumpRangeText,
             out bool includeTmLineBreaks,
-            out bool lineBreakAsSpace)
+            out bool lineBreakAsSpace,
+            out bool lineBreaksSpecified)
         {
             inputs = new List<string>();
             objId = 0;
@@ -1691,6 +1791,7 @@ namespace FilterPDF.Commands
             cleanupSemantic = false;
             cleanupLossless = false;
             cleanupEfficiency = false;
+            cleanupSpecified = false;
             diffFullText = false;
             includeLineBreaks = true;
             includeTdLineBreaks = false;
@@ -1701,6 +1802,7 @@ namespace FilterPDF.Commands
             dumpRangeText = false;
             includeTmLineBreaks = false;
             lineBreakAsSpace = false;
+            lineBreaksSpecified = false;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -1751,29 +1853,34 @@ namespace FilterPDF.Commands
                 if (string.Equals(arg, "--no-line-breaks", StringComparison.OrdinalIgnoreCase))
                 {
                     includeLineBreaks = false;
+                    lineBreaksSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-breaks", StringComparison.OrdinalIgnoreCase))
                 {
                     includeLineBreaks = true;
+                    lineBreaksSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-breaks-td", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(arg, "--break-td", StringComparison.OrdinalIgnoreCase))
                 {
                     includeTdLineBreaks = true;
+                    lineBreaksSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-breaks-tm", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(arg, "--break-tm", StringComparison.OrdinalIgnoreCase))
                 {
                     includeTmLineBreaks = true;
+                    lineBreaksSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--line-breaks-space", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(arg, "--break-space", StringComparison.OrdinalIgnoreCase))
                 {
                     lineBreakAsSpace = true;
+                    lineBreaksSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--range-start", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
@@ -1908,6 +2015,7 @@ namespace FilterPDF.Commands
                 }
                 if (string.Equals(arg, "--cleanup", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 {
+                    cleanupSpecified = true;
                     var raw = args[++i];
                     foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries))
                     {
@@ -1939,16 +2047,19 @@ namespace FilterPDF.Commands
                 }
                 if (string.Equals(arg, "--cleanup-semantic", StringComparison.OrdinalIgnoreCase))
                 {
+                    cleanupSpecified = true;
                     cleanupSemantic = true;
                     continue;
                 }
                 if (string.Equals(arg, "--cleanup-lossless", StringComparison.OrdinalIgnoreCase))
                 {
+                    cleanupSpecified = true;
                     cleanupLossless = true;
                     continue;
                 }
                 if (string.Equals(arg, "--cleanup-efficiency", StringComparison.OrdinalIgnoreCase))
                 {
+                    cleanupSpecified = true;
                     cleanupEfficiency = true;
                     continue;
                 }
@@ -2006,6 +2117,79 @@ namespace FilterPDF.Commands
             return "";
         }
 
+        private static string ResolveRoiDoc(string rulesDoc, int objId)
+        {
+            if (!string.IsNullOrWhiteSpace(rulesDoc))
+                return rulesDoc.Trim();
+
+            const string defaultDoc = "tjpb_despacho";
+            var defaultPath = ResolveRoiPath(defaultDoc, objId);
+            if (!string.IsNullOrWhiteSpace(defaultPath))
+                return defaultDoc;
+            return "";
+        }
+
+        private static string ResolveRoiPath(string roiDoc, int objId)
+        {
+            if (string.IsNullOrWhiteSpace(roiDoc) || objId <= 0)
+                return "";
+
+            var name = roiDoc.Trim();
+            var baseName = $"{name}_obj{objId}_roi";
+            var candidates = new List<string>();
+            var cwd = Directory.GetCurrentDirectory();
+            var exeBase = AppContext.BaseDirectory;
+
+            foreach (var ext in new[] { ".yml", ".yaml" })
+            {
+                var file = baseName + ext;
+                candidates.Add(Path.Combine(cwd, "configs", "textops_anchors", file));
+                candidates.Add(Path.Combine(cwd, file));
+                candidates.Add(Path.Combine(cwd, "..", "configs", "textops_anchors", file));
+                candidates.Add(Path.Combine(cwd, "..", "..", "configs", "textops_anchors", file));
+                candidates.Add(Path.GetFullPath(Path.Combine(exeBase, "../../../../configs/textops_anchors", file)));
+            }
+
+            foreach (var candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            return "";
+        }
+
+        private static string ResolveAnyRoiPath(int objId)
+        {
+            if (objId <= 0)
+                return "";
+
+            var cwd = Directory.GetCurrentDirectory();
+            var exeBase = AppContext.BaseDirectory;
+            var dirs = new List<string>
+            {
+                Path.Combine(cwd, "configs", "textops_anchors"),
+                Path.Combine(cwd, "..", "configs", "textops_anchors"),
+                Path.Combine(cwd, "..", "..", "configs", "textops_anchors"),
+                Path.GetFullPath(Path.Combine(exeBase, "../../../../configs/textops_anchors"))
+            };
+
+            foreach (var dir in dirs)
+            {
+                if (!Directory.Exists(dir))
+                    continue;
+                foreach (var ext in new[] { "yml", "yaml" })
+                {
+                    var pattern = $"*_obj{objId}_roi.{ext}";
+                    var files = Directory.GetFiles(dir, pattern);
+                    if (files.Length > 0)
+                        return files[0];
+                }
+            }
+
+            return "";
+        }
+
         private static string ResolveExistingPath(string inputPath)
         {
             if (string.IsNullOrWhiteSpace(inputPath))
@@ -2047,6 +2231,28 @@ namespace FilterPDF.Commands
             }
             catch
             {
+                return null;
+            }
+        }
+
+        private static TextOpsRoiFile? LoadRoi(string roiPath)
+        {
+            if (string.IsNullOrWhiteSpace(roiPath) || !File.Exists(roiPath))
+                return null;
+
+            try
+            {
+                var deserializer = new DeserializerBuilder()
+                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                    .IgnoreUnmatchedProperties()
+                    .Build();
+
+                using var reader = new StreamReader(roiPath);
+                return deserializer.Deserialize<TextOpsRoiFile>(reader);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Falha ao carregar ROI: " + ex.Message);
                 return null;
             }
         }
@@ -2337,6 +2543,31 @@ namespace FilterPDF.Commands
             public string? EndsWith { get; set; }
             public int? MinLen { get; set; }
             public int? MaxLen { get; set; }
+        }
+
+        private sealed class TextOpsRoiFile
+        {
+            public int Version { get; set; } = 1;
+            public string? Doc { get; set; }
+            public int Obj { get; set; }
+            public TextOpsRoiSection? FrontHead { get; set; }
+            public TextOpsRoiSection? BackTail { get; set; }
+        }
+
+        private sealed class TextOpsRoiSection
+        {
+            public string? Label { get; set; }
+            public List<TextOpsRoiRange> Ranges { get; set; } = new List<TextOpsRoiRange>();
+        }
+
+        private sealed class TextOpsRoiRange
+        {
+            public string? SourceFile { get; set; }
+            public int StartOp { get; set; }
+            public int EndOp { get; set; }
+            public string? Op { get; set; }
+            public string? StartLabel { get; set; }
+            public string? EndLabel { get; set; }
         }
 
         private sealed class TextOpsAnchorsFile

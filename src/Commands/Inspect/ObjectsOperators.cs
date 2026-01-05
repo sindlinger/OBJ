@@ -48,13 +48,13 @@ namespace FilterPDF.Commands
 
         private static void ShowHelp()
         {
-            Console.WriteLine("tjpdf-cli inspect objects operators text --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
-            Console.WriteLine("tjpdf-cli inspect objects operators var --inputs a.pdf,b.pdf --obj N [--blocks] [--blocks-inline] [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency] [--full-text] [--range-start <regex> --range-end <regex> | --range-start-op N --range-end-op N] [--range-text] [--line-breaks-td] [--line-breaks-tm] [--line-breaks-space]");
-            Console.WriteLine("tjpdf-cli inspect objects operators var --input file.pdf --obj N --self [--anchors] [--anchors-out <dir|file>]");
-            Console.WriteLine("tjpdf-cli inspect objects operators fixed --inputs a.pdf,b.pdf --obj N [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency] [--full-text] [--range-start <regex> --range-end <regex> | --range-start-op N --range-end-op N] [--range-text] [--line-breaks-td] [--line-breaks-tm] [--line-breaks-space]");
-            Console.WriteLine("tjpdf-cli inspect objects operators fixed --input file.pdf --obj N --self [--rules <yml> | --doc <nome>]");
-            Console.WriteLine("tjpdf-cli inspect objects operators diff --inputs a.pdf,b.pdf --obj N [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency] [--full-text] [--range-start <regex> --range-end <regex> | --range-start-op N --range-end-op N] [--range-text] [--line-breaks-td] [--line-breaks-tm] [--line-breaks-space]");
-            Console.WriteLine("tjpdf-cli inspect objects operators anchors --input file.pdf --obj N --self [--anchors-out <dir|file>] [--anchors-merge]");
+            Console.WriteLine("tjpdf.exe objects operators text --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
+            Console.WriteLine("tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj N [--op Tj,TJ] [--doc tjpb_despacho]");
+            Console.WriteLine("  Defaults: full-text diff + range text + line breaks (Td/Tm) as space + cleanup lossless");
+            Console.WriteLine("  Range: front_head em configs/textops_anchors/<doc>_obj<obj>_roi.yml");
+            Console.WriteLine("tjpdf.exe objects operators var --input file.pdf --obj N --self [--anchors] [--anchors-out <dir|file>]");
+            Console.WriteLine("tjpdf.exe objects operators fixed --input file.pdf --obj N --self [--rules <yml> | --doc <nome>]");
+            Console.WriteLine("tjpdf.exe objects operators anchors --input file.pdf --obj N --self [--anchors-out <dir|file>] [--anchors-merge]");
         }
 
         private static string[] EnsureAnchorsFlag(string[] args)
