@@ -1,0 +1,42 @@
+fields: ["PERITO", "CPF/CNPJ", "PROFISSÃO"]
+priority: 1.3
+sources:
+  - bucket: principal
+    name_matches: ["*Despacho*.html", "*Despacho*.pdf", "*Autorizacao*", "*Autorização*"]
+  - bucket: principal
+  - bucket: laudo
+patterns:
+  - type: regex
+    label: perito_cpf_mesma_linha
+    pattern: 'perit[oa][^\n]{0,40}?([A-ZÁÂÃÀÉÊÍÓÔÕÚÇ][A-ZÁÂÃÀÉÊÍÓÔÕÚÇ\s.-]{5,})\s+cpf[:\s]*([0-9\.\-]{11,14})'
+    field: "PERITO"
+    weight: 1.35
+    compose:
+      second_field: "CPF/CNPJ"
+  - type: regex
+    label: perito_linha
+    pattern: 'perit[oa]\s*[:\-]?\s*([A-ZÁÂÃÀÉÊÍÓÔÕÚÇ][A-Za-zÁÂÃÀÉÊÍÓÔÕÚÇ\s.-]{5,})'
+    field: "PERITO"
+    weight: 0.9
+  - type: regex
+    label: interessado
+    pattern: 'interessad[oa]\s*[:\-]?\s*([^\n\-–—]{5,})'
+    field: "PERITO"
+    weight: 1.05
+  - type: regex
+    label: cpf
+    pattern: '(\d{3}\.\d{3}\.\d{3}-\d{2})'
+    field: "CPF/CNPJ"
+    weight: 1.1
+  - type: regex
+    label: profissao_no_despacho
+    pattern: 'perit[oa][^\n]{0,40}?(m[eé]dic[oa]|psic[oó]log[oa]|engenheir[oa](?:\s+civil)?(?:\s+e\s+avaliador[a]?\s+de\s+bens\s+m[oó]veis\s+e\s+im[oó]veis)?|odont[oó]log[oa]|contabil|grafot[eé]cnico|assistente\s+social)'
+    field: "PROFISSÃO"
+    weight: 1.1
+  - type: regex
+    label: profissao_isolada
+    pattern: '(m[eé]dic[oa]|psic[oó]log[oa]|engenheir[oa](?:\s+civil)?(?:\s+e\s+avaliador[a]?\s+de\s+bens\s+m[oó]veis\s+e\s+im[oó]veis)?|odont[oó]log[oa]|contabil|grafot[eé]cnico|assistente\s+social)'
+    field: "PROFISSÃO"
+    weight: 0.9
+clean: [clean_perito, clean_profissao]
+validate: [validate_perito]

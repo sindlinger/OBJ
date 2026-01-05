@@ -1,0 +1,69 @@
+[
+  {
+    "target_id": "1.1A",
+    "keywords": ["grafotecnico","grafotécnico","grafotecnica","grafotécnica","grafoscopia","grafoscópico","grafoscópica","grafocopista","assinatura falsa","falsificacao de assinatura","falsificação de assinatura","grafoscopista"]
+  },
+  {
+    "target_id": "1.5",
+    "keywords": ["pericia contabil","perícia contábil","contador","contadora","perito contábil","perita contábil","contabilista","escrita fiscal","pericia economica","perícia econômica","economista","balanco","balanço"]
+  },
+  {
+    "target_id": "2.1",
+    "keywords": ["engenharia","engenheiro","engenheira","eng.","engª","engenheiro civil","eng civil","engenheira civil","engenheiro eletrico","engenheiro elétrico","engenheiro mecanico","engenheiro mecânico","engenheiro ambiental","engenheiro de seguranca","engenheiro de segurança","engenharia civil","engenharia eletrica","engenharia elétrica","engenharia mecanica","engenharia mecânica","engenharia ambiental","perito engenheiro","perita engenheira","perito eng.","perita eng.","crea","arquiteto","arquiteta","arq.","arquitetura","laudo estrutural","vistoria predial","avaliacao estrutural","laudo de engenharia"]
+  },
+  {
+    "target_id": "2.3",
+    "keywords": ["condicoes estruturais","condições estruturais","estabilidade do imovel","estabilidade do imóvel","solidez do imovel","solidez do imóvel","vicio construtivo","vício construtivo","patologia de concreto","patologias construtivas","laudo estrutural","estrutura","parede estrutural"]
+  },
+  {
+    "target_id": "2.4",
+    "keywords": ["avaliacao de bens","avaliação de bens","avaliacao mercadologica","avaliação mercadológica","avaliacao de bem rural","avaliacao de bem urbano","avaliacao de veiculo","avaliação de veículo","avaliacao de bens moveis","avaliação de bens móveis","avaliacao mercadologica de imovel","avaliação mercadológica de imóvel","avaliacao de imovel","avaliação de imóvel","vistoria imobiliaria","vistoria imobiliária","laudo de avaliacao de imovel","laudo de avaliação de imóvel"]
+  },
+  {
+    "target_id": "2.5",
+    "keywords": ["demarcatoria","demarcatória","acao demarcatoria","ação demarcatória","divisao de terras","divisão de terras","demarcacao","demarcação"]
+  },
+  {
+    "target_id": "2.6",
+    "keywords": ["insalubridade","periculosidade","ltcat","ppra","perito de seguranca","perito de segurança","seguranca do trabalho","segurança do trabalho","laudo de insalubridade","laudo de periculosidade","engenharia de segurança","eng seg trabalho"]
+  },
+  {
+    "target_id": "2.7",
+    "keywords": ["engenharia outros","engenharia diversa","laudo tecnico","laudo técnico","parecer técnico"]
+  },
+  {
+    "target_id": "3.1",
+    "keywords": ["interdicao","interdição","curatela","curador","curadora","interditando","pericia de interdição","perícia de interdição","curatelado"]
+  },
+  {
+    "target_id": "3.2",
+    "keywords": ["dano fisico","dano físico","dano estetico","dano estético","lesao corporal","lesão corporal","deformidade","estetico","estético","danos estéticos"]
+  },
+  {
+    "target_id": "3.3",
+    "keywords": [
+      "pericia medica","perícia médica","perito medico","perita medica","medico","médica","med","dra","dr","perito medico legista","medico legista","legista",
+      "medico psiquiatra","psiquiatra","pericia psiquiatrica","perícia psiquiátrica",
+      "ortopedista","ortopedia","oftalmologista","oftalmologia","cardiologista","cardiologia","neurologista","neurologia","otorrino","otorrinolaringologista","otorrinolaringologia",
+      "ginecologista","ginecologia","obstetra","obstetrícia","pediatra","pediatria","dermatologista","dermatologia",
+      "pericia medica trabalhista","pericia medica judicial",
+      "pericia odontologica","perícia odontológica","odontologo","odontóloga","dentista","odontologia"
+    ]
+  },
+  {
+    "target_id": "4.1",
+    "keywords": ["pericia psicologica","perícia psicológica","psicologo","psicóloga","psic.","psi","avaliacao psicologica","avaliação psicológica","entrevista forense","entrevistador forense","entrevistadora forense","perito psicologo","perita psicologa","laudo psicologico","laudo psicológico"]
+  },
+  {
+    "target_id": "5.1",
+    "keywords": ["assistente social","ass. social","servico social","serviço social","estudo social","relatorio social","relatório social","parecer social","entrevistador forense assistente social","entrevistadora forense assistente social","psicossocial"]
+  },
+  {
+    "target_id": "6.1",
+    "keywords": ["avaliacao comercial de imovel","avaliação comercial de imóvel","avaliacao de imovel","avaliação de imóvel","avaliacao mercadologica de imovel","avaliação mercadológica de imóvel","vistoria imobiliaria","vistoria imobiliária","laudo de avaliacao de imovel","laudo de avaliação de imóvel","avaliação mercadológica","amv","avaliação mercadológica de bens imóveis"]
+  },
+  {
+    "target_id": "6.2",
+    "keywords": ["corretor de imoveis","corretor de imóveis","avaliacao por corretor","laudo por corretor","perito corretor","perita corretora"]
+  }
+]

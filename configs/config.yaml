@@ -1,0 +1,251 @@
+version: "2025-12-19"
+
+field_strategies:
+  enabled: true
+  dir: "../configs/fields"
+  files: []
+
+reference:
+  peritos_catalog_paths:
+    - "../reference/peritos/peritos_catalogo_relatorio.csv"
+    - "../reference/peritos/peritos_catalogo_final.csv"
+    - "../reference/peritos/peritos_catalogo.csv"
+    - "../reference/peritos/peritos_catalogo_parquet.csv"
+  honorarios:
+    table_path: "../reference/valores/tabela_honorarios.csv"
+    aliases_path: "../reference/valores/honorarios_aliases.json"
+    value_tolerance_pct: 0.15
+    prefer_valor_de: true
+    allow_valor_jz: true
+    area_map:
+      - area: "CIÊNCIAS CONTÁBEIS"
+        keywords:
+          - "contab"
+          - "contador"
+          - "grafotec"
+          - "grafoscop"
+          - "grafocop"
+          - "perito grafotecnico"
+          - "grafotecnico"
+          - "grafoscopia"
+      - area: "ENGENHARIA E ARQUITETURA"
+        keywords:
+          - "engenh"
+          - "arquitet"
+          - "civil"
+          - "insalubr"
+          - "periculos"
+          - "engenheiro civil"
+      - area: "MEDICINA / ODONTOLOGIA"
+        keywords:
+          - "medic"
+          - "odont"
+          - "psiquiat"
+          - "perito medico"
+      - area: "PSICOLOGIA"
+        keywords:
+          - "psicol"
+          - "entrevistadora forense"
+          - "psicologo"
+          - "psicologa"
+      - area: "SERVIÇO SOCIAL"
+        keywords:
+          - "assistente social"
+          - "estudo social"
+          - "servico social"
+          - "entrevistadora forense assistente social"
+      - area: "OUTRAS"
+        keywords:
+          - "avaliacao comercial"
+
+thresholds:
+  blank_max_pct: 20
+  minPages: 2
+  maxPages: 6
+  bands:
+    headerTopPct: 0.15
+    subheaderPct: 0.15
+    bodyStartPct: 0.30
+    footerBottomPct: 0.15
+  paragraph:
+    lineMergeY: 0.015
+    paragraphGapY: 0.03
+    word_gap_x: 0.012
+  match:
+    docScoreMin: 0.70
+    anchorsMin: 3
+
+anchors:
+  header:
+    - "PODER JUDICIARIO"
+    - "TRIBUNAL DE JUSTICA"
+    - "PARAIBA"
+  subheader:
+    - "DIRETORIA ESPECIAL"
+    - "DIESP"
+  title:
+    - "DESPACHO"
+    - "DESPACHO N"
+    - "DESPACHO N0"
+  footer:
+    - "DOCUMENTO ASSINADO ELETRONICAMENTE"
+    - "CODIGO VERIFICADOR"
+    - "CRC"
+  signerHints:
+    - "ROBSON"
+
+despacho_type:
+  autorizacao_hints:
+    - "AUTORIZACAO"
+    - "ENCAMINHEM-SE OS PRESENTES AUTOS"
+    - "ENCAMINHE-SE"
+    - "ENCAMINHEM OS PRESENTES AUTOS"
+    - "ENCAMINHEM-SE OS AUTOS"
+    - "GERÊNCIA DE PROGRAMAÇÃO ORÇAMENTÁRIA"
+  georc_hints:
+    - "GEORC"
+    - "GERENCIA DE PROGRAMACAO ORCAMENTARIA"
+    - "GERÊNCIA DE PROGRAMAÇÃO ORÇAMENTÁRIA"
+  conselho_hints:
+    - "CONSELHO DA MAGISTRATURA"
+    - "CONSELHO DE MAGISTRATURA"
+  de_value_patterns:
+    - "(?i)proceder\\s*(?:à|a)?\\s*reserva\\s+orçament[aá]ria[^\\d]{0,120}?(R\\$\\s*\\d{1,3}(?:\\.\\d{3})*,\\d{2})"
+    - "(?i)proceder\\s*.*?reserva\\s+orçament[aá]ria[^\\d]{0,120}?(R\\$\\s*\\d{1,3}(?:\\.\\d{3})*,\\d{2})"
+    - "(?i)reserva\\s+orçament[aá]ria[^\\d]{0,120}?(R\\$\\s*\\d{1,3}(?:\\.\\d{3})*,\\d{2})"
+    - "(?i)nota\\s+de\\s+empenho[^\\d]{0,120}?(R\\$\\s*\\d{1,3}(?:\\.\\d{3})*,\\d{2})"
+
+certidao:
+  header_hints:
+    - "ASSESSORIA DO CONSELHO DA MAGISTRATURA"
+  title_hints:
+    - "CERTIDÃO"
+    - "CERTIDAO"
+  body_hints:
+    - "AUTORIZADO O PAGAMENTO"
+    - "HONORÁRIOS"
+    - "HONORARIOS"
+  date_hints:
+    - "SALA DE SESSÕES"
+    - "SALA DE SESSOES"
+    - "CONSELHO DA MAGISTRATURA"
+
+template_regions:
+  word_gap_x: 0.012
+  first_page_top:
+    min_y: 0.55
+    max_y: 1.0
+    templates:
+      - "Processo nº {{PROCESSO_ADMINISTRATIVO}} Requerente: {{PROMOVENTE}} Interessado: {{PERITO}}"
+      - "Despacho nº {{NUM_DESPACHO}} Processo nº {{PROCESSO_ADMINISTRATIVO}} Requerente: {{PROMOVENTE}} Interessado: {{PERITO}}"
+      - "PODER JUDICIÁRIO TRIBUNAL DE JUSTIÇA DA PARAÍBA DIRETORIA ESPECIAL - TRIBUNAL DE JUSTIÇA DESPACHO Nº {{NUM_DESPACHO}} PODER JUDICIÁRIO DO ESTADO DA PARAÍBA DIRETORIA ESPECIAL PROCESSO Nº {{PROCESSO_ADMINISTRATIVO}} REQUERENTE: {{PROMOVENTE}} INTERESSADO: {{PERITO}}"
+      - "Despacho nº {{NUM_DESPACHO}}"
+      - "Processo nº {{PROCESSO_ADMINISTRATIVO}}"
+      - "Requerente: {{PROMOVENTE}}"
+      - "Interessado: {{PERITO}}"
+      - "no valor de R$ {{VALOR_ARBITRADO_JZ}}"
+      - "Perito {{ESPECIALIDADE}}, {{PERITO}}"
+      - "CPF {{CPF_PERITO}}"
+  last_page_bottom:
+    min_y: 0.0
+    max_y: 0.45
+    templates:
+      - "proceder à reserva orçamentária, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "proceder a reserva orçamentaria, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "para havendo disponibilidade econômica financeira, proceder à reserva orçamentária, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "encaminhem-se os presentes autos à Gerência de Programação Orçamentária deste Tribunal – GEORC – para havendo disponibilidade econômica financeira, proceder à reserva orçamentária, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "encaminhem-se os presentes autos à Gerência de Programação Orçamentária deste Tribunal - GEORC - para havendo disponibilidade econômica financeira, proceder à reserva orçamentária, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "proceder à reserva orçamentária, no valor de R$ {{VALOR_ARBITRADO_DE}}, arbitrado em favor do Perito {{ESPECIALIDADE}}, {{PERITO}}"
+      - "nota de empenho, no valor de R$ {{VALOR_ARBITRADO_DE}}"
+      - "arbitrado em favor do Perito {{ESPECIALIDADE}}, {{PERITO}}, CPF {{CPF_PERITO}}"
+      - "arbitrado em favor do Perito {{ESPECIALIDADE}}, {{PERITO}}"
+      - "Perito {{ESPECIALIDADE}}, {{PERITO}}, CPF {{CPF_PERITO}}"
+      - "processo nº {{PROCESSO_JUDICIAL}}, movido por {{PROMOVENTE}}, em face de {{PROMOVIDO}}"
+      - "processo nº {{PROCESSO_JUDICIAL}} movido por {{PROMOVENTE}} em face de {{PROMOVIDO}}"
+      - "Juízo da {{VARA}} da Comarca de {{COMARCA}}"
+      - "Juizo da {{VARA}} da Comarca de {{COMARCA}}"
+      - "Juízo da {{VARA}}"
+      - "Comarca de {{COMARCA}}"
+      - "Diretoria Especial do Tribunal de Justiça do Estado da Paraíba, em João Pessoa, {{DATA}}"
+      - "João Pessoa – PB, {{DATA}}"
+      - "João Pessoa - PB, {{DATA}}"
+      - "Documento assinado eletronicamente por {{ASSINANTE}}"
+      - "Documento assinado eletronicamente por {{ASSINANTE}}, Diretor(a) Especial"
+      - "Documento assinado eletronicamente por {{ASSINANTE}} Diretor(a) Especial"
+      - "Assinado eletronicamente por {{ASSINANTE}}"
+      - "Assinado eletronicamente por: {{ASSINANTE}}"
+  certidao_full:
+    min_y: 0.0
+    max_y: 1.0
+    templates:
+      - "Certifico, outrossim, que os integrantes do Egrégio Conselho da Magistratura, em sessão ordinária, hoje realizada, apreciando o processo acima identificado, proferiram a seguinte decisão: AUTORIZADO O PAGAMENTO DOS HONORÁRIOS PERICIAIS, NO VALOR DE R$ {{VALOR_ARBITRADO_CM}}"
+      - "AUTORIZADO O PAGAMENTO DOS HONORÁRIOS PERICIAIS, NO VALOR DE R$ {{VALOR_ARBITRADO_CM}}"
+      - "Conselho da Magistratura, Sala de Sessões \"Des. Manoel Fonsêca Xavier de Andrade\" do Tribunal de Justiça do Estado da Paraíba, em João Pessoa, no dia {{DATA}}"
+      - "Conselho da Magistratura, Sala de Sessões \"Des. Manoel Fonseca Xavier de Andrade\" do Tribunal de Justiça do Estado da Paraíba, em João Pessoa, no dia {{DATA}}"
+      - "Robson de Lima Cananéa"
+      - "Robson de Lima Cananea"
+  certidao_value_date:
+    min_y: 0.0
+    max_y: 1.0
+    templates:
+      - "AUTORIZADO O PAGAMENTO DOS HONORÁRIOS PERICIAIS, NO VALOR DE R$ {{VALOR_ARBITRADO_CM}}"
+      - "AUTORIZADO O PAGAMENTO DOS HONORARIOS PERICIAIS, NO VALOR DE R$ {{VALOR_ARBITRADO_CM}}"
+      - "Conselho da Magistratura, Sala de Sessões"
+      - "em João Pessoa, no dia {{DATA}}"
+
+regex:
+  processo_cnj: "\\b\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}\\b"
+  processo_sei: "\\b(?:SEI\\s*)?(?:\\d{6,7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}(?:\\.\\d{4})?|\\d{6,}\\.\\d{6}/\\d{4}-\\d{2})\\b"
+  processo_adme: "\\b(?:ADME|CI)\\s*\\d{3,}\\b"
+  cpf: "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b"
+  money: "(?:R\\$\\s*)?\\d{1,3}(?:\\.\\d{3})*,\\d{2}"
+  date_pt: "\\b\\d{1,2}\\s+de\\s+[A-Za-z]+\\s+de\\s+\\d{4}\\b"
+  date_slash: "\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b"
+
+priorities:
+  processo_admin_labels:
+    - "PROCESSO ADMINISTRATIVO"
+    - "PROCESSO CI"
+    - "PROCESSO ADME"
+    - "PROCESSO"
+  perito_labels:
+    - "INTERESSADO"
+  vara_labels:
+    - "VARA"
+    - "JUIZO"
+  comarca_labels:
+    - "COMARCA"
+  promovente_labels:
+    - "PROMOVENTE"
+    - "AUTOR"
+    - "REQUERENTE"
+  promovido_labels:
+    - "PROMOVIDO"
+    - "REU"
+    - "REQUERIDO"
+
+fields:
+  processo_administrativo:
+    templates:
+      - "Processo Administrativo: {{value}}"
+      - "Processo CI: {{value}}"
+      - "Processo ADME: {{value}}"
+  processo_judicial:
+    templates:
+      - "Processo Judicial: {{value}}"
+  perito:
+    templates:
+      - "Interessado: {{value}}"
+  cpf_perito:
+    templates:
+      - "CPF: {{value}}"
+  especialidade:
+    templates:
+      - "Perito em {{value}}"
+      - "Perito - {{value}}"
+  data:
+    templates:
+      - "Documento assinado eletronicamente em {{value}}"
+  assinante:
+    templates:
+      - "Documento assinado eletronicamente por {{value}}"
