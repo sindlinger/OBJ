@@ -65,6 +65,7 @@ namespace FilterPDF.Commands
                     out var cleanupLossless,
                     out var cleanupEfficiency,
                     out var cleanupSpecified,
+                    out var diffLineModeSpecified,
                     out var diffFullText,
                     out var includeLineBreaks,
                     out var includeTdLineBreaks,
@@ -114,7 +115,13 @@ namespace FilterPDF.Commands
                 diffFullText = true;
                 dumpRangeText = true;
                 if (!cleanupSpecified)
+                {
+                    cleanupSemantic = true;
                     cleanupLossless = true;
+                    cleanupEfficiency = true;
+                }
+                if (!diffLineModeSpecified)
+                    diffLineMode = true;
                 if (!lineBreaksSpecified)
                 {
                     includeLineBreaks = true;
@@ -255,7 +262,7 @@ namespace FilterPDF.Commands
             {
                 var roiDoc = ResolveRoiDoc(rulesDoc, objId);
                 if (mode == DiffMode.Variations || mode == DiffMode.Both)
-                    PrintFullTextDiffWithRange(inputs, fullResults, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, dumpRangeText, roiDoc, objId);
+                    PrintFullTextDiffWithRange(inputs, fullResults, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, rangeStartRegex, rangeEndRegex, rangeStartOp, rangeEndOp, dumpRangeText, roiDoc, objId, mode == DiffMode.Both);
                 return;
             }
 
@@ -749,7 +756,8 @@ namespace FilterPDF.Commands
             int? rangeEndOp,
             bool dumpRangeText,
             string roiDoc,
-            int objId)
+            int objId,
+            bool showEqual)
         {
             if (inputs.Count < 2)
                 return;
@@ -842,7 +850,7 @@ namespace FilterPDF.Commands
                 Console.WriteLine();
             }
 
-            PrintFullTextDiff(inputs, slicedTexts, slicedOps, slicedOpNames, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency);
+            PrintFullTextDiff(inputs, slicedTexts, slicedOps, slicedOpNames, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency, showEqual);
         }
 
         private static bool TryResolveRange(
@@ -1035,7 +1043,8 @@ namespace FilterPDF.Commands
             bool diffLineMode,
             bool cleanupSemantic,
             bool cleanupLossless,
-            bool cleanupEfficiency)
+            bool cleanupEfficiency,
+            bool showEqual = false)
         {
             if (inputs.Count < 2)
                 return;
@@ -1068,6 +1077,12 @@ namespace FilterPDF.Commands
                     var len = diff.text.Length;
                     if (diff.operation == Operation.EQUAL)
                     {
+                        if (showEqual && len > 0)
+                        {
+                            var label = BuildOpRangeLabel(baseOps, baseOpNames, basePos, len);
+                            var display = EscapeBlockText(diff.text);
+                            Console.WriteLine($"EQ  {label}\t{baseName}\t\"{display}\" (len={len})");
+                        }
                         basePos += len;
                         otherPos += len;
                         continue;
@@ -1755,6 +1770,7 @@ namespace FilterPDF.Commands
             out bool cleanupLossless,
             out bool cleanupEfficiency,
             out bool cleanupSpecified,
+            out bool diffLineModeSpecified,
             out bool diffFullText,
             out bool includeLineBreaks,
             out bool includeTdLineBreaks,
@@ -1788,6 +1804,7 @@ namespace FilterPDF.Commands
             anchorsMerge = false;
             tokenMode = TokenMode.Text;
             diffLineMode = false;
+            diffLineModeSpecified = false;
             cleanupSemantic = false;
             cleanupLossless = false;
             cleanupEfficiency = false;
@@ -1918,6 +1935,7 @@ namespace FilterPDF.Commands
                     string.Equals(arg, "--line-diff", StringComparison.OrdinalIgnoreCase))
                 {
                     diffLineMode = true;
+                    diffLineModeSpecified = true;
                     continue;
                 }
                 if (string.Equals(arg, "--blocks-inline", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--block-inline", StringComparison.OrdinalIgnoreCase))
