@@ -18,7 +18,7 @@ namespace FilterPDF.Commands
 
         public override void Execute(string[] args)
         {
-            var (mode, rest) = ParseMode(args, new[] { "list", "analyze", "deep", "inspect", "summary", "types", "table", "filter", "operators", "ops", "shell", "text", "texto", "textoperators", "textops", "textopsfixed", "textopsvar", "textopsdiff", "objdiff", "diff", "extractfields", "fronthead", "backtail" });
+            var (mode, rest) = ParseMode(args, new[] { "list", "analyze", "deep", "inspect", "summary", "types", "table", "filter", "operators", "ops", "shell", "text", "texto", "objdiff", "diff", "extractfields", "fronthead", "backtail" });
             if (string.IsNullOrWhiteSpace(mode))
             {
                 ShowHelp();
@@ -45,21 +45,6 @@ namespace FilterPDF.Commands
                 case "operators":
                 case "ops":
                     ObjectsOperators.Execute(rest);
-                    break;
-                case "textoperators":
-                    PrintDeprecated("textoperators", "objects operators text");
-                    break;
-                case "textopsfixed":
-                    PrintDeprecated("textopsfixed", "objects operators fixed");
-                    break;
-                case "textopsvar":
-                    PrintDeprecated("textopsvar", "objects operators var");
-                    break;
-                case "textopsdiff":
-                    PrintDeprecated("textopsdiff", "objects operators diff");
-                    break;
-                case "textops":
-                    PrintDeprecated("textops", "objects operators text");
                     break;
                 case "fronthead":
                     ObjectsFrontBack.Execute(rest, ObjectsFrontBack.BandMode.Front);
@@ -99,7 +84,6 @@ namespace FilterPDF.Commands
             Console.WriteLine("aliases: analyze|deep|table|filter (redirecionam para list)");
             Console.WriteLine("tjpdf-cli inspect objects operators <subcmd> [...]");
             Console.WriteLine("  subcmd: text|var|fixed|diff|anchors");
-            Console.WriteLine("  (textops* antigos desativados)");
             Console.WriteLine("tjpdf-cli inspect objects objdiff --input target.pdf --inputs a.pdf,b.pdf [--input-dir <dir>] [--page N|--pages 1,3] [--top N] [--min-score 0.70]");
             Console.WriteLine("                                   [--band front|back] [--y-range 0.70-1.00]");
             Console.WriteLine("tjpdf-cli inspect objects fronthead --input file.pdf [--page N|--pages 1,3] [--y-range 0.70-1.00] [--include-xobject] [--limit N]");
@@ -124,11 +108,6 @@ namespace FilterPDF.Commands
             Console.WriteLine("tjpdf-cli inspect objects extractfields DATA_DESPESA (DATA_ARBITRADO_FINAL) --input file.pdf");
             Console.WriteLine("tjpdf-cli inspect objects shell --input file.pdf [--last]");
             Console.WriteLine("tjpdf-cli inspect objects text --input file.pdf");
-        }
-
-        private static void PrintDeprecated(string cmd, string replacement)
-        {
-            Console.WriteLine($"Comando '{cmd}' desativado. Use: {replacement}");
         }
 
         private static (string mode, string[] rest) ParseMode(string[] args, string[] modes)

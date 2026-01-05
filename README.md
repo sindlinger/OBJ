@@ -20,7 +20,6 @@ Use `objects operators` para agrupar os comandos de operadores:
 - `objects operators fixed`     -> textopsfixed
 - `objects operators diff`      -> textopsdiff
 - `objects operators anchors`   -> textopsvar + `--anchors`
-- `textops*` antigos estão desativados (use operators)
 
 ## Configs (root repo)
 - Rules: `../configs/textops_rules/`
