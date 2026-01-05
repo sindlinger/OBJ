@@ -49,11 +49,11 @@ namespace FilterPDF.Commands
         private static void ShowHelp()
         {
             Console.WriteLine("tjpdf-cli inspect objects operators text --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
-            Console.WriteLine("tjpdf-cli inspect objects operators var --inputs a.pdf,b.pdf --obj N [--blocks] [--blocks-inline] [--ops-diff]");
+            Console.WriteLine("tjpdf-cli inspect objects operators var --inputs a.pdf,b.pdf --obj N [--blocks] [--blocks-inline] [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency]");
             Console.WriteLine("tjpdf-cli inspect objects operators var --input file.pdf --obj N --self [--anchors] [--anchors-out <dir|file>]");
-            Console.WriteLine("tjpdf-cli inspect objects operators fixed --inputs a.pdf,b.pdf --obj N [--ops-diff]");
+            Console.WriteLine("tjpdf-cli inspect objects operators fixed --inputs a.pdf,b.pdf --obj N [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency]");
             Console.WriteLine("tjpdf-cli inspect objects operators fixed --input file.pdf --obj N --self [--rules <yml> | --doc <nome>]");
-            Console.WriteLine("tjpdf-cli inspect objects operators diff --inputs a.pdf,b.pdf --obj N [--ops-diff]");
+            Console.WriteLine("tjpdf-cli inspect objects operators diff --inputs a.pdf,b.pdf --obj N [--ops-diff] [--line-mode] [--cleanup semantic|lossless|efficiency]");
             Console.WriteLine("tjpdf-cli inspect objects operators anchors --input file.pdf --obj N --self [--anchors-out <dir|file>] [--anchors-merge]");
         }
 

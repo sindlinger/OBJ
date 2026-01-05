@@ -59,7 +59,11 @@ namespace FilterPDF.Commands
                     out var rulesDoc,
                     out var anchorsOut,
                     out var anchorsMerge,
-                    out var tokenMode))
+                    out var tokenMode,
+                    out var diffLineMode,
+                    out var cleanupSemantic,
+                    out var cleanupLossless,
+                    out var cleanupEfficiency))
                 return;
 
             var rulesPath = ResolveRulesPath(rulesPathArg, rulesDoc);
@@ -235,7 +239,7 @@ namespace FilterPDF.Commands
             if (mode == DiffMode.Variations || mode == DiffMode.Both)
             {
                 if (blocks)
-                    PrintVariationBlocks(inputs, tokenLists, tokenOpLists, tokenOpNames, blocksInline, blocksOrder, blockRange, minTokenLenFilter, tokenMode);
+                    PrintVariationBlocks(inputs, tokenLists, tokenOpLists, tokenOpNames, blocksInline, blocksOrder, blockRange, minTokenLenFilter, tokenMode, diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency);
                 else
                     PrintVariations(inputs, varLines, minTokenLenFilter, tokenMode);
             }
@@ -345,7 +349,20 @@ namespace FilterPDF.Commands
             }
         }
 
-        private static void PrintVariationBlocks(List<string> inputs, List<List<string>> tokenLists, List<List<int>> tokenOpLists, List<List<string>> tokenOpNames, bool inline, string order, (int? Start, int? End) range, int minTokenLenFilter, TokenMode tokenMode)
+        private static void PrintVariationBlocks(
+            List<string> inputs,
+            List<List<string>> tokenLists,
+            List<List<int>> tokenOpLists,
+            List<List<string>> tokenOpNames,
+            bool inline,
+            string order,
+            (int? Start, int? End) range,
+            int minTokenLenFilter,
+            TokenMode tokenMode,
+            bool diffLineMode,
+            bool cleanupSemantic,
+            bool cleanupLossless,
+            bool cleanupEfficiency)
         {
             if (tokenLists.Count == 0)
             {
@@ -360,7 +377,7 @@ namespace FilterPDF.Commands
             var baseTokens = tokenLists[0];
             var alignments = new List<TokenAlignment>();
             for (int i = 1; i < tokenLists.Count; i++)
-                alignments.Add(BuildAlignment(baseTokens, tokenLists[i]));
+                alignments.Add(BuildAlignment(baseTokens, tokenLists[i], diffLineMode, cleanupSemantic, cleanupLossless, cleanupEfficiency));
 
             var varToken = new bool[baseTokens.Count];
             var varGap = new bool[baseTokens.Count + 1];
@@ -1147,11 +1164,24 @@ namespace FilterPDF.Commands
             public List<string> IndexToToken { get; }
         }
 
-        private static TokenAlignment BuildAlignment(List<string> baseTokens, List<string> otherTokens)
+        private static TokenAlignment BuildAlignment(
+            List<string> baseTokens,
+            List<string> otherTokens,
+            bool diffLineMode,
+            bool cleanupSemantic,
+            bool cleanupLossless,
+            bool cleanupEfficiency)
         {
             var encoding = BuildTokenEncoding(baseTokens, otherTokens);
             var dmp = new diff_match_patch();
-            var diffs = dmp.diff_main(encoding.BaseEncoded, encoding.OtherEncoded, false);
+            var diffs = dmp.diff_main(encoding.BaseEncoded, encoding.OtherEncoded, diffLineMode);
+
+            if (cleanupSemantic)
+                dmp.diff_cleanupSemantic(diffs);
+            if (cleanupLossless)
+                dmp.diff_cleanupSemanticLossless(diffs);
+            if (cleanupEfficiency)
+                dmp.diff_cleanupEfficiency(diffs);
 
             var baseToOther = new int[baseTokens.Count];
             for (int i = 0; i < baseToOther.Length; i++)
@@ -1286,7 +1316,11 @@ namespace FilterPDF.Commands
             out string rulesDoc,
             out string anchorsOut,
             out bool anchorsMerge,
-            out TokenMode tokenMode)
+            out TokenMode tokenMode,
+            out bool diffLineMode,
+            out bool cleanupSemantic,
+            out bool cleanupLossless,
+            out bool cleanupEfficiency)
         {
             inputs = new List<string>();
             objId = 0;
@@ -1308,6 +1342,10 @@ namespace FilterPDF.Commands
             anchorsOut = "";
             anchorsMerge = false;
             tokenMode = TokenMode.Text;
+            diffLineMode = false;
+            cleanupSemantic = false;
+            cleanupLossless = false;
+            cleanupEfficiency = false;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -1346,6 +1384,12 @@ namespace FilterPDF.Commands
                 if (string.Equals(arg, "--blocks", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--block", StringComparison.OrdinalIgnoreCase))
                 {
                     blocks = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--line-mode", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--line-diff", StringComparison.OrdinalIgnoreCase))
+                {
+                    diffLineMode = true;
                     continue;
                 }
                 if (string.Equals(arg, "--blocks-inline", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--block-inline", StringComparison.OrdinalIgnoreCase))
@@ -1439,6 +1483,52 @@ namespace FilterPDF.Commands
                 if (string.Equals(arg, "--anchors-merge", StringComparison.OrdinalIgnoreCase))
                 {
                     anchorsMerge = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--cleanup", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    var raw = args[++i];
+                    foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var mode = part.Trim().ToLowerInvariant();
+                        if (mode == "none" || mode == "off")
+                        {
+                            cleanupSemantic = false;
+                            cleanupLossless = false;
+                            cleanupEfficiency = false;
+                            continue;
+                        }
+                        if (mode == "semantic" || mode == "sem")
+                        {
+                            cleanupSemantic = true;
+                            continue;
+                        }
+                        if (mode == "lossless" || mode == "semantic-lossless" || mode == "loss")
+                        {
+                            cleanupLossless = true;
+                            continue;
+                        }
+                        if (mode == "efficiency" || mode == "efficient" || mode == "eff")
+                        {
+                            cleanupEfficiency = true;
+                            continue;
+                        }
+                    }
+                    continue;
+                }
+                if (string.Equals(arg, "--cleanup-semantic", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanupSemantic = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--cleanup-lossless", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanupLossless = true;
+                    continue;
+                }
+                if (string.Equals(arg, "--cleanup-efficiency", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanupEfficiency = true;
                     continue;
                 }
                 if ((string.Equals(arg, "--token-mode", StringComparison.OrdinalIgnoreCase) ||
