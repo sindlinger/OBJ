@@ -7,6 +7,8 @@ extraction engine** (TjpbDespachoExtractor).
 ## Core commands (objects/textops)
 - Diff (two PDFs):
   `tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj 6 --op Tj,TJ`
+- Mapear campos a partir de alignrange (NLP + regex no recorte):
+  `tjpdf.exe objects mapfields --alignrange outputs/align_ranges/<a>__<b>.txt --map configs/alignrange_fields/tjpb_despacho.yml --front`
 - Variaveis (self):
   `tjpdf.exe objects operators var --input file.pdf --obj 6 --self --anchors --doc tjpb_despacho`
 - Fixos (self):
@@ -26,9 +28,15 @@ Use `objects operators` para agrupar os comandos de operadores:
 - Rules: `../configs/textops_rules/`
 - Anchors: `../configs/textops_anchors/`
 - Field maps: `../ExtractFields/`
+- Alignrange maps: `configs/alignrange_fields/`
+- Defaults (auto-loaded): `../configs/obj_defaults.yml`
 
 ## Extraction core (now inside OBJ)
 The full `FilterPDF.TjpbDespachoExtractor` pipeline now lives here:
 - Commands: `src/TjpbDespachoExtractor/Commands/`
 - Extraction engine: `src/TjpbDespachoExtractor/Extraction/`
 - Models/Config/Reference/Utils: `src/TjpbDespachoExtractor/*`
+
+## Encapsulated modules (no CLI coupling)
+- Align engine: `Align/ObjectsTextOpsDiff.cs` (diff/align logic, alignrange core, ROI helpers).
+- Document detector: `DocDetector/` (bookmark and /Contents-based title detection).

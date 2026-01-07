@@ -1,0 +1,60 @@
++----------------------+
+| INICIO (PDF)         |
++----------+-----------+
+           |
+           v
++----------------------+
+| Bookmark "despacho"? |
++----+-----------------+
+     | sim
+     v
++-------------------------------+
+| start = pag. bookmark         |
+| end   = prox. bookmark - 1    |
+| paginas = start, start+1 (<=) |
++-------------------------------+
+     |
+     v
++-------------------------------+
+| PARA CADA pagina selecionada  |
++-------------------------------+
+     |
+     v
++-------------------------------+
+| /Contents existe?             |
++----+--------------------------+
+     | nao -> avisa, proxima
+     v
++-------------------------------+
+| varrer TODOS os streams       |
+| (geralmente 3)                |
++-------------------------------+
+     |
+     v
++-------------------------------+
+| algum stream tem:             |
+| - titulo "despacho" (prefixo)|
+| - cabecalho fixo (YAML)       |
++----+--------------------------+
+     | nao -> proxima pagina
+     v
++-------------------------------+
+| ENTRA no pipeline              |
+| corpo = maior stream da pagina |
++-------------------------------+
+     |
+     v
++-------------------------------+
+| textops (Tj/TJ)                |
+| align + front_head/back_tail   |
+| op_range + ValueFull           |
++-------------------------------+
+     |
+     v
++----------------------+
+| FIM                 |
++----------------------+
+
+Fallback global:
+- se nenhum bookmark e nenhuma pagina com marker,
+  usa pagina com maior /Contents (ultima tentativa).

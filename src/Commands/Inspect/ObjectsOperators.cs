@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Obj.Align;
 
 namespace FilterPDF.Commands
 {
@@ -8,7 +9,7 @@ namespace FilterPDF.Commands
     {
         public static void Execute(string[] args)
         {
-            var (mode, rest) = ParseMode(args, new[] { "text", "operators", "textoperators", "var", "variavel", "variaveis", "fixed", "fixo", "fixos", "diff", "anchors", "ancoras" });
+            var (mode, rest) = ParseMode(args, new[] { "text", "operators", "textoperators", "var", "variavel", "variaveis", "fixed", "fixo", "fixos", "diff", "align", "equiv", "anchors", "ancoras" });
             if (string.IsNullOrWhiteSpace(mode))
             {
                 ShowHelp();
@@ -35,6 +36,10 @@ namespace FilterPDF.Commands
                 case "diff":
                     ObjectsTextOpsDiff.Execute(rest, ObjectsTextOpsDiff.DiffMode.Both);
                     break;
+                case "align":
+                case "equiv":
+                    ObjectsTextOpsDiff.Execute(rest, ObjectsTextOpsDiff.DiffMode.Align);
+                    break;
                 case "anchors":
                 case "ancoras":
                     ObjectsTextOpsDiff.Execute(EnsureAnchorsFlag(rest), ObjectsTextOpsDiff.DiffMode.Variations);
@@ -49,12 +54,15 @@ namespace FilterPDF.Commands
         private static void ShowHelp()
         {
             Console.WriteLine("tjpdf.exe objects operators text --input file.pdf [--id N] [--limit N] [--op Tj,TJ]");
-            Console.WriteLine("tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj N [--op Tj,TJ] [--doc tjpb_despacho]");
+            Console.WriteLine("tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj N [--op Tj,TJ] [--doc tjpb_despacho] [--plain]");
             Console.WriteLine("  Defaults: full-text diff + range text + line breaks (Td/Tm) as space + cleanup lossless");
             Console.WriteLine("  Range: front_head em configs/textops_anchors/<doc>_obj<obj>_roi.yml");
-            Console.WriteLine("tjpdf.exe objects operators var --input file.pdf --obj N --self [--anchors] [--anchors-out <dir|file>]");
+            Console.WriteLine("tjpdf.exe objects operators var --inputs a.pdf,b.pdf --obj N [--block-tokens] [--plain] [--min-block-len N]");
+            Console.WriteLine("tjpdf.exe objects operators var --inputs a.pdf,b.pdf --contents [--page N]");
+            Console.WriteLine("tjpdf.exe objects operators var --input file.pdf --obj N --self [--anchors] [--anchors-out <dir|file>] [--plain] [--min-block-len N]");
             Console.WriteLine("tjpdf.exe objects operators fixed --input file.pdf --obj N --self [--rules <yml> | --doc <nome>]");
-            Console.WriteLine("tjpdf.exe objects operators anchors --input file.pdf --obj N --self [--anchors-out <dir|file>] [--anchors-merge]");
+            Console.WriteLine("tjpdf.exe objects operators align --inputs a.pdf,b.pdf --contents [--page N]");
+            Console.WriteLine("tjpdf.exe objects operators anchors --input file.pdf --obj N --self [--anchors-out <dir|file>] [--anchors-merge] [--plain] [--min-block-len N]");
         }
 
         private static string[] EnsureAnchorsFlag(string[] args)

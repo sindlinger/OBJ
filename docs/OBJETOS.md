@@ -30,6 +30,62 @@ USO (diff com defaults):
 tjpdf.exe objects operators diff --inputs a.pdf,b.pdf --obj 6 --op Tj,TJ --doc tjpb_despacho
 ```
 
+## Comando unico (Objects) para localizar despacho
+```
+tjpdf-cli inspect objects despacho --input <pdf> [--page N]
+tjpdf-cli inspect objects despacho --input-dir <dir> [--page N]
+  [--out-dir <dir>]
+  [--regex <pat>] [--range-start <pat>] [--range-end <pat>]
+  [--backtail-start <pat>] [--backtail-end <pat>]
+  [--doc <name>] [--no-roi]
+```
+Quando `--out-dir` é informado, salva um `.txt` por PDF usando o nome do arquivo (`<pdf>.txt`).
+Se `--out-dir` não for informado, usa o diretório padrão `output/objects_despacho`.
+Por padrão o comando usa **ROI** (`--doc tjpb_despacho`) para front_head/back_tail. Use `--no-roi` para forçar regex.
+Este comando executa **objeto -> operador** automaticamente:
+1) `inspect contents find` (localiza page+obj).
+2) `inspect contents list` (lista streams do /Contents).
+3) `inspect objects operators diff` (recorte por operadores Tj/TJ) na **pagina inicial**.
+4) Repete o recorte na **pagina seguinte** (backtail).
+
+## Regra de identificacao do despacho em PDF completo (objeto -> operador)
+Objetivo: localizar o **stream correto** do `/Contents` e, em seguida, **recortar por operadores** (`Tj/TJ`).
+
+### Regra (heuristica validada na quarentena)
+1) **Localizar pagina/stream** que contém o despacho usando texto do stream (nao é o texto do PDF inteiro).
+2) Se a pagina tiver **3 streams** no `/Contents`:
+   - **menor (~len 10)**: geralmente vazio/banal (ignorar).
+   - **maior**: quase sempre contém o **corpo do despacho**.
+   - **stream médio/pequeno**: frequentemente contém a linha **"Despacho ... SEI ... / pg. N"**.
+3) Confirmar o stream escolhido **no nivel de operador** (`Tj/TJ`) antes de recortar campos.
+
+### Comando 1 — localizar stream (objeto)
+Usa `inspect contents find` para retornar **page + obj** dos streams que contêm palavras‑chave:
+```
+tjpdf-cli inspect contents find --input <pdf> \
+  --regex "(?i)diretoria\\s+especial|despacho|honor[aá]rios|per[ií]cia|pagamento|sei|processo\\s+nº" \
+  --preview 80
+```
+
+### Comando 2 — listar /Contents da pagina escolhida
+```
+tjpdf-cli inspect contents list --input <pdf> --page <N>
+```
+
+### Comando 3 — recorte por operadores (Tj/TJ) no stream escolhido
+Usa **Objects → Operators → diff** para recortar **por operadores**, nunca no documento inteiro:
+```
+tjpdf-cli inspect objects operators diff --inputs <pdf>,<pdf> --obj <OBJ_ID> --op Tj,TJ \
+  --range-start "Diretoria\\s+Especial|Despacho" \
+  --range-end "Comarca\\s+(?:da|de)\\s+[A-Za-zÀ-ú ]+\\." \
+  --range-text
+```
+
+### Resultado esperado
+- **OBJ_ID** aponta para o stream correto do despacho.
+- O `range-text` retorna **apenas o recorte** do despacho (sem outras paginas/objetos).
+- O recorte vira base para `extractfields` e para mapas YAML por campo.
+
 ## O que foi implementado (resumo detalhado)
 
 ### 1) Decode real dos bytes de Tj/TJ (por operador)
@@ -44,7 +100,7 @@ Agora:
 Arquivos envolvidos:
 - `src/TjpdfPipeline.Core/Commands/Inspect/PdfTextExtraction.cs`
 - `src/TjpdfPipeline.Core/Commands/Inspect/ObjectsTextOperators.cs`
-- `src/TjpdfPipeline.Core/Commands/Inspect/ObjectsTextOpsDiff.cs`
+- `OBJ/Align/ObjectsTextOpsDiff.cs`
 
 ### 2) Self mode (1 PDF) para variaveis/fixos
 `inspect objects textopsvar` e `textopsfixed` agora aceitam **1 PDF** (modo self).
